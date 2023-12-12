@@ -7,7 +7,7 @@ nicolas.moitessier@mcgill.ca
 # Required libraries:
 torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
 
-# How to run
+# Getting started
 Command to see the usage of this python script:
 python main.py --mode usage
 
