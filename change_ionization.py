@@ -309,6 +309,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
                         # if bound to nitro
                         nitro = 0
                         for bond2 in mol_original.GetBonds():
+
                             atom3 = curr_atom
 
                             if bond2.GetBeginAtomIdx() == atom2.GetIdx() and bond2.GetEndAtomIdx() != curr_atom.GetIdx():
@@ -368,6 +369,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
 
                     if atom2.GetSymbol() == 'S':
                         for bond2 in mol_original.GetBonds():
+
                             atom3 = curr_atom
 
                             if bond2.GetBeginAtomIdx() == atom2.GetIdx() and bond2.GetEndAtomIdx() != curr_atom.GetIdx():
@@ -412,7 +414,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
                 elif bond.GetEndAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetBeginAtomIdx()).GetSymbol() != 'H':
                     numOfBonds += bond.GetBondTypeAsDouble()
 
-            # Wth rdkit, in 5 membered ring such as pyrrole, all the bonds are 1.5 (even if single around nitrogens)
+            # With rdkit, in 5 membered ring such as pyrrole, all the bonds are 1.5 (even if single around nitrogens)
             # as a result, the sum of bond order is 4 (although it should be 3)
             if numOfBonds > 3.5 and mol_original.GetRingInfo().IsAtomInRingOfSize(curr_atom.GetIdx(), 6):
                 if k > 0 and smiles[k] == '[':

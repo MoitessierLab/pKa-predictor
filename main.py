@@ -10,6 +10,7 @@
 # pip install pandas
 # pip install rdkit
 # pip install seaborn
+# pip install hyperopt
 
 import torch
 import numpy as np
@@ -19,6 +20,7 @@ import time
 
 from torch_geometric.loader import DataLoader
 
+from hyperoptimize import hyperoptimize
 from prepare_set import generate_datasets, dump_datasets
 from argParser import argsParser
 from utils import set_cuda_visible_device, load_data
@@ -66,7 +68,7 @@ if __name__ == '__main__':
     else:
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # Reading and preparing the sets
+    # Training the model
     if args.mode == "train":
         train_file = args.data_path + args.train_data
         train_dataset = generate_datasets(train_file, 'Train', args)
@@ -116,6 +118,38 @@ if __name__ == '__main__':
         #        print(name, param.data)
 
         testing(best_trained_model, train_loader, test_loader, args)
+
+    # Optimizing the hyperparameters
+    if args.mode == "hyperopt":
+        train_file = args.data_path + args.train_data
+        train_dataset = generate_datasets(train_file, 'Train', args)
+        train_path = args.train_pickled
+        dump_datasets(train_dataset, train_path)
+
+        if args.test_data != "none":
+            test_file = args.data_path + args.test_data
+            test_dataset = generate_datasets(test_file, 'Test', args)
+            test_path = args.test_pickled
+            dump_datasets(test_dataset, test_path)
+
+        # Loading data for training (if no testing set provided, use the training set as testing set).
+        train_data = load_data(args.train_pickled)
+        if args.test_data != "none":
+            test_data = load_data(args.test_pickled)
+        else:
+            test_data = load_data(args.train_pickled)
+
+        print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
+        # training the model
+        hyperoptimize(train_dataset, train_data, test_data, args)
+
+        # torch.save(best_trained_model.state_dict(), args.save_dir + args.output + '.pth')
+
+        # for name, param in best_trained_model.named_parameters():
+        #    if param.requires_grad:
+        #        print(name, param.data)
+
+        # testing(best_trained_model, train_loader, test_loader, args)
 
     elif args.mode == 'usage':
         usage()

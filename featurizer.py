@@ -144,7 +144,7 @@ def get_node_features(mol, center, args):
             node_features += one_hot(atom.GetTotalNumHs(),
                                      [0, 1, 2, (3 or 4)])
 
-        # Feature 10: Atom formal charge (#30-31)
+        # Feature 10: Atom formal charge (#30-32)
         if args.atom_feature_formal_charge is True:
             node_features += one_hot(atom.GetFormalCharge(),
                                      [-1, 0, 1])
@@ -261,7 +261,7 @@ def from_acid_to_base(mol, center):
             break
 
     # Kekulizing is causing issues with pyridinium.This step is not needed to assign aromaticity so we do all the sanitization steps but kekulization.
-    # In addition the valence is misassigned in some cases. So we also make sure to remove this step from sanitization.
+    # In addition, the valence is misassigned in some cases. So we also make sure to remove this step from sanitization.
     smile_base = "none"
     if base_found is True:
         Chem.SanitizeMol(mol, Chem.SanitizeFlags.SANITIZE_FINDRADICALS | Chem.SanitizeFlags.SANITIZE_SETAROMATICITY |

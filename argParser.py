@@ -24,7 +24,7 @@ def argsParser():
     parser.add_argument("--bond_feature_conjugation", help="bond conjugation", type=str2bool, default=True)
     parser.add_argument("--bond_feature_charge_conjugation", help="bond conjugation with charge", type=str2bool, default=False)
     parser.add_argument("--bond_feature_polarization", help="bond polarization", type=str2bool, default=True)
-    parser.add_argument("--only_acid", help="bond polarization", type=str2bool, default=False)
+    parser.add_argument("--acid_or_base", help="acid only, base only or both", type=str, default="both")
     parser.add_argument("--num_workers", help="number of workers", type=int, default=0)
     parser.add_argument("--n_graph_layers", help="number of GNN layers", type=int, default=6)
     parser.add_argument("--embedding_size", help="dimension of GNN layers", type=int, default=128)
@@ -34,6 +34,9 @@ def argsParser():
     parser.add_argument("--model_attention_heads", help="model attention heads", type=int, default=4)
     parser.add_argument("--dropout_rate", help="dropout_rate", type=float, default=0.1)
     parser.add_argument("--mode", help="train, test, infer, pH", type=str, default="train")
+    parser.add_argument("--hyperopt_max_evals", help="maximum number of evaluations", type=int, default=50)
+    parser.add_argument("--hyperopt_convergence", help="max number of epoch with no improvement", type=int, default=50)
+    parser.add_argument("--hyperopt_max_increase", help="threshold above min loss", type=float, default=0.10)
 
     parser.add_argument("--verbose", help="amount of data output", type=int, default=0)
     parser.add_argument("--data_path", help="path to data folder", type=str, default='data/')
@@ -74,9 +77,9 @@ def argsParser():
     print('| Department of Chemistry, McGill University, Montreal, QC, Canada                                                           |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
     print('| Parameters used:                                                                                                           |')
-    print('| --mode (train, test, infer or pH):                                 %-55s |' % args.mode)
+    print('| --mode (train, hyperopt, test, infer or pH):                       %-55s |' % args.mode)
     print('| --verbose (level of output):                                       %-55s |' % args.verbose)
-    if args.mode == 'train':
+    if args.mode == 'train' or args.mode == 'hyperopt':
         print('| --n_random_smiles (number of random smiles)                        %-55.0f |' % args.n_random_smiles)
         print('| --lr (learning rate):                                              %-55.6f |' % args.lr)
         print('| --weight_decay (weight decay):                                     %-55.6f |' % args.weight_decay)
@@ -100,7 +103,7 @@ def argsParser():
         print('| --bond_feature_charge_conjugation (charge and conjugation):        %-55s |' % args.bond_feature_charge_conjugation)
         print('| --bond_feature_polarization (bond polarization):                   %-55s |' % args.bond_feature_polarization)
 
-        print('| --only_acid (base features not included):                          %-55s |' % args.bond_feature_polarization)
+        print('| --acid_or_base (features included):                                %-55s |' % args.acid_or_base)
         print('| --num_workers (number of workers for multiple CPU usage):          %-55.0f |' % args.num_workers)
         print('| --n_graph_layer (number of GNN layers):                            %-55.0f |' % args.n_graph_layers)
         print('| --embedding_size (dimension of embedding after GNN layers):        %-55.0f |' % args.embedding_size)
@@ -135,6 +138,11 @@ def argsParser():
         print('| --test_pickled (path to the pickled testing set):                  %-55s |' % args.test_pickled)
         print('| --restart (model from which to restart training):                  %-55s |' % args.restart)
         print('| --seed (seed value for randomizer):                                %-55.0f |' % args.seed)
+
+    if args.mode == 'train' or args.mode == 'hyperopt':
+        print('| --hyperopt_max_evals (max evaluations for hyperopt):               %-55.0f |' % args.hyperopt_max_evals)
+        print('| --hyperopt_convergence (max number of epochs with no improvement)  %-55.0f |' % args.hyperopt_convergence)
+        print('| --hyperopt_max_increase (upper threshold after 100 epochs)         %-55.3f |' % args.hyperopt_max_increase)
 
     if args.mode == 'test' or args.mode == 'infer' or args.mode == 'pH':
         print('| --data_path (path to the data folder):                             %-55s |' % args.data_path)

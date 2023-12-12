@@ -114,11 +114,17 @@ def generate_datasets(filename, train_or_test, args):
 
         # Get edge features
         edge_features_A = get_edge_features(mol_obj_A, args)
-        if args.only_acid is False:
-            edge_features_B = get_edge_features(mol_obj_B, args)
+        edge_features_B = get_edge_features(mol_obj_B, args)
+        if args.acid_or_base == "acid":
+            edge_features = edge_features_A
+        elif args.acid_or_base == "base":
+            edge_features = edge_features_B
+        elif args.acid_or_base == "both":
             edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
         else:
-            edge_features = edge_features_A
+            print('|----------------------------------------------------------------------------------------------------------------------------|')
+            print('| ERROR: acid_or_base can only be acid base or both                                                                          |')
+            print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
         # Get labels info
         label = get_labels(mol['pKa'])
@@ -157,7 +163,8 @@ def generate_datasets(filename, train_or_test, args):
             if args.atom_feature_atom_size is True:
                 base_feature += 1
 
-                # Feature 3: Hybridization (#14-16)
+            # Feature 3: Hybridization (#14-16)
+            # if args.acid_or_base == "acid" or args.acid_or_base == "both":
             if args.atom_feature_hybridization is True:
                 base_hybrid = base_feature
                 base_feature += 3
@@ -171,11 +178,12 @@ def generate_datasets(filename, train_or_test, args):
             if args.atom_feature_number_of_rings is True:
                 base_feature += 3
 
-                # Feature 7: Ring Size (#21-24)
+            # Feature 7: Ring Size (#21-24)
             if args.atom_feature_ring_size is True:
                 base_feature += 4
 
-                # Feature 8: Number of hydrogen (#25-28)
+            # Feature 8: Number of hydrogen (#25-28)
+            # if args.acid_or_base == "acid" or args.acid_or_base == "both":
             if args.atom_feature_number_of_Hs is True:
                 base_Hs = base_feature
                 base_feature += 4
@@ -187,8 +195,13 @@ def generate_datasets(filename, train_or_test, args):
 
             # The two molecules have identical features (element,...), so we concatenate
             # all of them in acids + the ones that may be different in bases (aromaticity, hybridization, number of hydrogens, charge)
-            node_features = node_features_A
-            if args.only_acid is False:
+            if args.acid_or_base == "acid":
+                node_features = node_features_A
+            elif args.acid_or_base == "base":
+                node_features = node_features_B
+            elif args.acid_or_base == "both":
+                node_features = node_features_A
+
                 if base_hybrid > -1:
                     node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+2]], 1)
 
@@ -246,6 +259,11 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
     if 'Index' in small_mol.keys():
         proposed_center = int(small_mol['Index']) + 1
 
+    original_smiles = True
+    smiles_idx = 0
+    # print("| 236    |", ionization_states, initial)
+
+    # Removing explicit hydrogens:
     # Removing the hydrogen bonds (eg: [OH:15] should become O
     for j in range(len(smiles)):
         if j == len(smiles):
@@ -421,10 +439,20 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                              Chem.SanitizeFlags.SANITIZE_SYMMRINGS, catchErrors=True)
 
             # Get edge features
-            edge_features_A = get_edge_features(mol_obj_A, args)
-            edge_features_B = get_edge_features(mol_obj_B, args)
-
-            edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+            if args.acid_or_base == "acid":
+                edge_features_A = get_edge_features(mol_obj_A, args)
+                edge_features = edge_features_A
+            elif args.acid_or_base == "base":
+                edge_features_B = get_edge_features(mol_obj_B, args)
+                edge_features = edge_features_B
+            elif args.acid_or_base == "both":
+                edge_features_A = get_edge_features(mol_obj_A, args)
+                edge_features_B = get_edge_features(mol_obj_B, args)
+                edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+            else:
+                print('|----------------------------------------------------------------------------------------------------------------------------|')
+                print('| ERROR: acid_or_base can only be acid base or both                                                                          |')
+                print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
             # Get labels info
             if args.mode == 'test':
@@ -464,6 +492,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                 base_feature += 1
 
             # Feature 3: Hybridization (#14-16)
+            #if args.acid_or_base == "acid" or args.acid_or_base == "both":
             if args.atom_feature_hybridization is True:
                 base_hybrid = base_feature
                 base_feature += 3
@@ -482,6 +511,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                 base_feature += 4
 
             # Feature 8: Number of hydrogen (#25-28)
+            #if args.acid_or_base == "acid" or args.acid_or_base == "both":
             if args.atom_feature_number_of_Hs is True:
                 base_Hs = base_feature
                 base_feature += 4
@@ -491,8 +521,13 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                 base_charge = base_feature
                 base_feature += 3
 
-            node_features = node_features_A
-            if args.only_acid is False:
+            if args.acid_or_base == "acid":
+                node_features = node_features_A
+            elif args.acid_or_base == "base":
+                node_features = node_features_B
+            elif args.acid_or_base == "both":
+                node_features = node_features_A
+
                 if base_hybrid > -1:
                     node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+2]], 1)
 
@@ -581,6 +616,7 @@ def move_center_in_graph(node_features_A, node_features_B, edge_index, distance_
     node_features_A = swap_tensor_items(node_features_A, center, 0)
     node_features_B = swap_tensor_items(node_features_B, center, 0)
     edge_index = torch.clone(swap_tensor_values(edge_index, center, 0))
+    distance_matrix = swap_tensor_items(distance_matrix, center, 0)
     distance_matrix = swap_tensor_columns(distance_matrix, center, 0, node_features_A.size(dim=0))
 
     center = 0
