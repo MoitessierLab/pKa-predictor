@@ -5,7 +5,7 @@ nicolas.moitessier@mcgill.ca
 2023-12-07
 
 # Required libraries:
-torch, torch_geometric, pandas, numpy, rdkit, seaborn
+torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
 
 # How to run
 Command to see the usage of this python script:
