@@ -28,7 +28,7 @@ for mol in MolFromSmiles:
 df = pd.DataFrame(rdkit_2d_desc,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('2D_test.csv', index=False)
+df.to_csv('2D_train_0.65.csv', index=False)
 
 MACCs = []
 header = []
@@ -43,7 +43,7 @@ for i in range(len(MACCs[0])):
 df = pd.DataFrame(MACCs,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('MACCs_test.csv', index=False)
+df.to_csv('MACCs_train_0.65.csv', index=False)
 
 
 Morgan = []
@@ -59,7 +59,7 @@ for i in range(len(Morgan[0])):
 df = pd.DataFrame(Morgan,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('Morgan_1024_2_test.csv', index=False)
+df.to_csv('Morgan_1024_2_train_0.65.csv', index=False)
 
 
 Morgan = []
@@ -75,7 +75,7 @@ for i in range(len(Morgan[0])):
 df = pd.DataFrame(Morgan,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('Morgan_1024_3_test.csv', index=False)
+df.to_csv('Morgan_1024_3_train_0.65.csv', index=False)
 
 
 
@@ -91,7 +91,7 @@ for i in range(len(Morgan[0])):
 df = pd.DataFrame(Morgan,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('Morgan_2048_2_test.csv', index=False)
+df.to_csv('Morgan_2048_2_train_0.65.csv', index=False)
 
 #
 Morgan = []
@@ -106,7 +106,7 @@ for i in range(len(Morgan[0])):
 df = pd.DataFrame(Morgan,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('Morgan_2048_3_test.csv', index=False)
+df.to_csv('Morgan_2048_3_train_0.65.csv', index=False)
 
 
 EState = []
@@ -121,7 +121,7 @@ for i in range(len(EState[0])):
 df = pd.DataFrame(EState,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('EState_test.csv', index=False)
+df.to_csv('EState_train_0.65.csv', index=False)
 
 
 EStateSum = []
@@ -135,7 +135,7 @@ for i in range(len(EStateSum[0])):
 df = pd.DataFrame(EStateSum,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('EStateSum_test.csv', index=False)
+df.to_csv('EStateSum_train_0.65.csv', index=False)
 
 twod_MACCs = []
 twod_header = []
@@ -157,7 +157,7 @@ header = np.concatenate((twod_header, maccs_header), axis=None)
 df = pd.DataFrame(twod_MACCs,columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('2D_MACCs_test.csv', index=False)
+df.to_csv('2D_MACCs_train_0.65.csv', index=False)
 
 twod_Morgan = []
 twod_header = []
@@ -178,4 +178,4 @@ header = np.concatenate((twod_header, Morgan_header), axis=None)
 df = pd.DataFrame(twod_Morgan, columns=header)
 df.insert(loc=0, column='name', value=name)
 df.insert(loc=1, column='pKa', value=pKas)
-df.to_csv('2D_Morgan_test.csv', index=False)
+df.to_csv('2D_Morgan_train_0.65.csv', index=False)
