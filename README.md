@@ -1,5 +1,5 @@
 # pKa-predictor
-Matching Machine Learning Algorithm to Teachers: Application to pKa Prediction.
+Leveraging our Teacher’s Experience to Improve Machine Learning: Application to pKa Prediction.
 Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
 nicolas.moitessier@mcgill.ca
 2023-12-07
