@@ -1,8 +1,8 @@
 # pKa-predictor
-Leveraging our Teacher’s Experience to Improve Machine Learning: Application to pKa Prediction.
+Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa Prediction.
 Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
 nicolas.moitessier@mcgill.ca
-2023-12-07
+2023-12-07 - revised 2024-06-18
 
 # Required libraries:
 torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
@@ -20,3 +20,9 @@ Command to see the usage of this python script:
 python main.py --mode usage
 
 Running any of the mode will first output all the keyword and their default values.
+
+To run the provided model on the csv file called train_set_0.65.csv:
+1. Create a folder named pickled_data
+2. Run the following command:
+python3 main.py --mode test ---n_graph_layers 4 --mask_size 4 --data_path Datasets/ --input train_set_0.65.csv --verbose 2 --output testing_model --n_random_smiles 0 --model_name model_4-4.pth
+
