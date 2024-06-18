@@ -10,7 +10,7 @@ torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
 # Repository Structure
 
 - The complete assembled and clean data set can be found in the data folder.
-- The clustered and randomly splited sets (obtained with the split_train_test_by_TC.py) can be found in the Clusters_Max_TC folder.
+- The clustered and randomly splited sets (obtained with the split_train_test_by_TC.py) can be found in the Datasets folder.
 - The code to generate the various fingerprints used for the Baseline Models can be found in Baseline_Models/Descriptors.
 - These latter will then be used in the respective folders for the traditional models (Baseline_Models/RF or Baseline_Models/XGB).
 - All the code related to our GNN/GAT model can be found in the GNN folder.
