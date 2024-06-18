@@ -159,7 +159,7 @@ def addHs(smiles, mol_original, num_of_atoms):
 
 
 def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens, acidic_carbons, ionizable_nitrogens,
-            negative_nitrogens, pyridinium):
+            negative_nitrogens, negative_oxygens, nitro_nitrogens, pyridinium, args):
     j = -1
     atom_idx = 0
 
@@ -380,7 +380,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
                             if atom3 != curr_atom and atom3.GetSymbol() == 'O' and atom3.GetHybridization() == Chem.rdchem.HybridizationType.SP2:
                                 activated_group += 2
 
-                    if activated_group >= 3:
+                    if activated_group >= 3 or isActivated is True:
                         curr_atom.SetFormalCharge(-1)
                         charged = True
 
@@ -401,6 +401,21 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
                 acidic_nitrogens.append(atom_idx)
 
         elif element == 'n' and charge == '-':
+            if atom_idx not in negative_nitrogens:
+                negative_nitrogens.append(atom_idx)
+
+        elif element == 'N' and charge == '-':
+            numOfBonds = 0
+            for bond in mol_original.GetBonds():
+                if bond.GetBeginAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetEndAtomIdx()).GetSymbol() != 'H':
+                    numOfBonds += bond.GetBondTypeAsDouble()
+                    # print("change_ion 289", bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondTypeAsDouble())
+                elif bond.GetEndAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetBeginAtomIdx()).GetSymbol() != 'H':
+                    numOfBonds += bond.GetBondTypeAsDouble()
+            if numOfBonds == 1:
+                smiles = smiles[:k] + 'NH-' + smiles[j + 1:]
+                j += 2
+
             if atom_idx not in negative_nitrogens:
                 negative_nitrogens.append(atom_idx)
 
@@ -449,10 +464,13 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
             if atom_idx not in negative_nitrogens:
                 negative_nitrogens.append(atom_idx)
 
-        elif element == 'N' and charge == 'none':
+        elif element == 'N' and charge == 'none' and curr_atom.GetIdx() not in nitro_nitrogens:
+            #print('change_ionization 453', curr_atom.GetDegree(), curr_atom.GetNumImplicitHs(), curr_atom.GetNumExplicitHs())
             if curr_atom.GetDegree() == 4 and curr_atom.GetNumImplicitHs() == 0 and curr_atom.GetNumExplicitHs() == 0:
                 if curr_atom.GetIdx() in ionizable_nitrogens:
                     ionizable_nitrogens.remove(curr_atom.GetIdx())
+                else:
+                    continue
                 curr_atom.SetFormalCharge(+1)
                 if k > 0 and smiles[k] == '[':
                     smiles = smiles[:k] + 'N+' + smiles[j + 1:]
@@ -463,7 +481,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
             elif curr_atom.GetDegree() == 3 and curr_atom.GetNumImplicitHs() == 0:
                 ionizable_nitrogens.append(atom_idx)
 
-        elif element[0] == 'C' and charge == 'none':
+        elif element[0] == 'C' and charge == 'none' and args.carbons_included is True:
             acidic_carbons, isActivated = next_to_CO_Allyl(curr_atom, mol_original, acidic_carbons)
             charged = False
             if isActivated:
@@ -497,7 +515,7 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
 
 
 def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nitrogens, acidic_nitrogens,
-                 negative_nitrogens, charged_oxygens, acidic_oxygens, acidic_carbons, pyridinium, addH, removeH):
+                 negative_nitrogens, negative_oxygens, acidic_oxygens, acidic_carbons, pyridinium, nitro_nitrogens, addH, removeH):
     is_smiles = False
     smiles_A = smiles
     # In the search for acidic sites, we skip all the symbols in the SMILES string other than C, N, n and O
@@ -558,10 +576,10 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
             atom_idx += 1
             return True, smiles_A, j, atom_idx
 
-        # Protonate a nitrogen (if no N- in the molecule)
+        # Protonate a nitrogen (if no N- in the molecule, we can have O- as in carboxylates - amino acids)
         if (smiles[j] == 'n' or smiles[j] == 'N') and smiles[j + 1] != '+' and smiles[j + 1] != '-' and smiles[j + 1] != '#' and smiles[j + 1] != '@' and \
                 is_smiles is False and addH is True and atom_idx not in positive_nitrogens and atom_idx in ionizable_nitrogens and \
-                atom_idx not in negative_nitrogens:  # TODO: the following should not be needed if the training is good
+                atom_idx not in negative_nitrogens and len(negative_nitrogens) == 0:  # TODO: the following should not be needed if the training is good
             if j > 0:
                 if smiles[j - 1] == '#':
                     j += 1
@@ -576,7 +594,8 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 j += 1
                 atom_idx += 1
                 return True, smiles_A, j, atom_idx
-            elif smiles[j + 1] == 'H' and smiles[j] != 'n':
+            # We don't charge if there is a negative nitrogen
+            elif smiles[j + 1] == 'H' and smiles[j] != 'n' and len(negative_nitrogens) == 0:
                 if smiles[j + 2] == ']':
                     smiles_A = smiles[:j] + smiles[j] + 'H2+' + smiles[j + 2:]
                 if smiles[j + 2] == '2':
@@ -592,14 +611,14 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 atom_idx += 1
                 return False, smiles_A, j, atom_idx
             else:
-                if smiles[j + 1] != '-':
+                if smiles[j + 1] != '-' and len(negative_nitrogens) == 0:
                     smiles_A = smiles[:j] + '[' + smiles[j] + 'H+]' + smiles[j + 1:]
                     ionizable_nitrogens.remove(atom_idx)
                     if atom_idx not in positive_nitrogens:
                         positive_nitrogens.append(atom_idx)
                 else:
                     smiles_A = smiles[:j] + smiles[j] + smiles[j + 2:]
-                    if atom_idx not in negative_nitrogens:
+                    if atom_idx in negative_nitrogens:
                         negative_nitrogens.remove(atom_idx)
 
             is_smiles = True
@@ -617,7 +636,7 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 acidic_nitrogens.append(atom_idx)
 
         # Protonate a negatively charged nitrogen
-        if smiles[j] == 'N' and smiles[j + 1] == 'H' and is_smiles is False and addH is True and atom_idx in negative_nitrogens:
+        if smiles[j] == 'N' and smiles[j + 1] == 'H' and smiles[j + 2] == '-' and is_smiles is False and addH is True and atom_idx in negative_nitrogens:
             smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 3:]
             is_smiles = True
             negative_nitrogens.remove(atom_idx)
@@ -701,8 +720,8 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 smiles_A = smiles[:j] + '[' + smiles[j] + '-]' + smiles[j + 1:]
                 j += 1
             acidic_oxygens.remove(atom_idx)
-            if atom_idx not in charged_oxygens:
-                charged_oxygens.append(atom_idx)
+            if atom_idx not in negative_oxygens:
+                negative_oxygens.append(atom_idx)
 
             j += 1
             atom_idx += 1
@@ -711,24 +730,26 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
         # Ionize a nitrogen
         elif (smiles[j] == 'n' or smiles[j] == 'N') and smiles[j + 1] != '+' and smiles[j + 1] != '-' and \
                 is_smiles is False and addH is False and removeH is True and atom_idx in acidic_nitrogens:
-            if 0 < j < len(smiles) - 2:
-                if smiles[j - 1] == '[' and smiles[j + 2] == ']':
-                    smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]
-                    j += 2
-            elif 0 < j < len(smiles) - 3:
-                if smiles[j - 1] == '[' and smiles[j + 2] == ']':
-                    smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]
-                    j += 2
-                elif smiles[j + 2] != '-':
+            # we do this only if there is no charged acidic nitrogen
+            if len(positive_nitrogens) == 0:
+                if 0 < j < len(smiles) - 2:
+                    if smiles[j - 1] == '[' and smiles[j + 2] == ']':
+                        smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]
+                        j += 2
+                elif 0 < j < len(smiles) - 3:
+                    if smiles[j - 1] == '[' and smiles[j + 2] == ']':
+                        smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]
+                        j += 2
+                    elif smiles[j + 2] != '-':
+                        smiles_A = smiles[:j] + '[' + smiles[j] + '-]' + smiles[j + 1:]
+                        j += 2
+                elif smiles[j + 1] != '-':
                     smiles_A = smiles[:j] + '[' + smiles[j] + '-]' + smiles[j + 1:]
-                    j += 2
-            elif smiles[j + 1] != '-':
-                smiles_A = smiles[:j] + '[' + smiles[j] + '-]' + smiles[j + 1:]
-                j += 1
-            if atom_idx in acidic_nitrogens:
-                acidic_nitrogens.remove(atom_idx)
-            if atom_idx not in negative_nitrogens:
-                negative_nitrogens.append(atom_idx)
+                    j += 1
+                if atom_idx in acidic_nitrogens:
+                    acidic_nitrogens.remove(atom_idx)
+                if atom_idx not in negative_nitrogens:
+                    negative_nitrogens.append(atom_idx)
 
             j += 1
             atom_idx += 1
@@ -751,8 +772,8 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 j += 1
 
             acidic_oxygens.remove(atom_idx)
-            if atom_idx not in charged_oxygens:
-                charged_oxygens.append(atom_idx)
+            if atom_idx not in negative_oxygens:
+                negative_oxygens.append(atom_idx)
 
             j += 2
             atom_idx += 1
@@ -761,7 +782,7 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
         # Neutralize an oxygen
         elif (smiles[j] == 'O' or (smiles[j] == 'S' and smiles[j + 1] != 'i' and smiles[j + 1] != 'e')) and \
                 smiles[j + 1] == '-' and (j > 0 and smiles[j - 1] != '=') \
-                and is_smiles is False and addH is True and removeH is False and atom_idx in charged_oxygens:
+                and is_smiles is False and addH is True and removeH is False and atom_idx in negative_oxygens:
 
             if 0 < j < len(smiles) - 2:
                 if smiles[j - 1] == '[' and smiles[j + 2] == ']':
@@ -773,7 +794,7 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
 
             if atom_idx not in acidic_oxygens:
                 acidic_oxygens.append(atom_idx)
-            charged_oxygens.remove(atom_idx)
+            negative_oxygens.remove(atom_idx)
 
             j += 1
             atom_idx += 1
@@ -781,7 +802,7 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
 
         # Neutralize a selenium
         elif smiles[j] == 'S' and smiles[j + 1] == 'e' and (j < len(smiles) - 2 and smiles[j + 2] == '-') and (j > 0 and smiles[j - 1] != '=') \
-                and is_smiles is False and addH is True and removeH is False and atom_idx in charged_oxygens:
+                and is_smiles is False and addH is True and removeH is False and atom_idx in negative_oxygens:
 
             if 0 < j < len(smiles) - 3:
                 if smiles[j - 1] == '[' and smiles[j + 3] == ']':
@@ -793,7 +814,7 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 smiles_A = smiles[:j] + '[' + smiles[j] + 'eH]'
             if atom_idx not in acidic_oxygens:
                 acidic_oxygens.append(atom_idx)
-            charged_oxygens.remove(atom_idx)
+            negative_oxygens.remove(atom_idx)
 
             j += 2
             atom_idx += 1
@@ -819,8 +840,8 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                 and is_smiles is False and addH is False and removeH is True and atom_idx in acidic_oxygens:
             smiles_A = smiles[:j] + '[' + smiles[j] + '-]'
             acidic_oxygens.remove(atom_idx)
-            if atom_idx not in charged_oxygens:
-                charged_oxygens.append(atom_idx)
+            if atom_idx not in negative_oxygens:
+                negative_oxygens.append(atom_idx)
 
             j += 1
             atom_idx += 1
@@ -829,11 +850,11 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
         # Neutralize an oxygen
         # TODO: add selenium (for now it is excluded)
         elif (smiles[j] == 'O' or smiles[j] == 'S') and smiles[j - 1] != '=' \
-                and is_smiles is False and addH is True and removeH is False and atom_idx in charged_oxygens:
+                and is_smiles is False and addH is True and removeH is False and atom_idx in negative_oxygens:
             smiles_A = smiles[:j] + '[' + smiles[j] + ']' + smiles[j + 2:]
             if atom_idx not in acidic_oxygens:
                 acidic_oxygens.append(atom_idx)
-            charged_oxygens.remove(atom_idx)
+            negative_oxygens.remove(atom_idx)
 
             j += 1
             atom_idx += 1
@@ -867,16 +888,17 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
     return is_smiles, smiles_A, j, atom_idx
 
 
-def find_centers(mol, i, smiles, initial):
+def find_centers(mol, i, smiles, name, initial, args):
     ionizable_nitrogens = []
     acidic_nitrogens = []
     charged_nitrogens = []
     acidic_oxygens = []
-    charged_oxygens = []
+    negative_oxygens = []
     acidic_carbons = []
+    nitro_nitrogens = []
 
     if initial is True:
-        print('| %6s | original SMILES: %-80s ----------------|' % (i + 1, smiles))
+        print('| %6s | original SMILES: %-80s ----------------|' % (str(i + 1), smiles + ' ' + str(name)))
 
     # We assume only implicit hydrogens
     for atom in mol.GetAtoms():
@@ -885,8 +907,7 @@ def find_centers(mol, i, smiles, initial):
         number_of_unsaturations = 0
         number_of_hydrogens = 0
         # We count the number of bond on each atom. We assume implicit only. This routine may have to be revised if explicit hydrogens
-        if atom.GetSymbol() == 'N' or atom.GetSymbol() == 'O' or atom.GetSymbol() == 'S' or atom.GetSymbol() == 'Se' \
-                or atom.GetSymbol() == 'As':
+        if atom.GetSymbol() == 'N' or atom.GetSymbol() == 'O' or atom.GetSymbol() == 'S' or atom.GetSymbol() == 'Se' or atom.GetSymbol() == 'As':
             number_of_hydrogens = atom.GetNumImplicitHs() + atom.GetNumExplicitHs()
             # Get the number of bonds
             for bond in mol.GetBonds():
@@ -899,10 +920,13 @@ def find_centers(mol, i, smiles, initial):
                     number_of_bonds += 1
                     if bond.GetBondTypeAsDouble() > 1.1:
                         number_of_unsaturations += 1
-
+            #print('change_ionization: ', atom.GetIdx(), number_of_bonds, number_of_unsaturations)
         if atom.GetSymbol() == 'N':
             # If already charged
+            #print('904: ', ionizable_nitrogens, acidic_nitrogens)
+            #print('change_ionization 905', atom.GetIdx(), atom.GetFormalCharge(), number_of_hydrogens, atom.GetHybridization())
             if atom.GetFormalCharge() == 1:
+                #print('906: ', ionizable_nitrogens, acidic_nitrogens)
                 # identifying nitro groups
                 nitro = 0
                 for bond in mol.GetBonds():
@@ -914,8 +938,8 @@ def find_centers(mol, i, smiles, initial):
                         atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
                         if atom2.GetSymbol() == 'O':
                             nitro += 1
-
                 if nitro == 2:
+                    nitro_nitrogens.append(atom.GetIdx())
                     continue
                 else:
                     # if N+ it needs to have hydrogens to be of interest
@@ -923,106 +947,56 @@ def find_centers(mol, i, smiles, initial):
                         charged_nitrogens.append(atom.GetIdx())
                     if number_of_hydrogens > 0 and atom.GetIdx() not in acidic_nitrogens:  # if only 1 H it will be removed when neutralizing:
                         acidic_nitrogens.append(atom.GetIdx())
+                #print('927: ', ionizable_nitrogens, acidic_nitrogens)
             else:
                 if atom.GetHybridization() == Chem.rdchem.HybridizationType.SP3 and number_of_bonds <= 3:
                     if atom.GetIdx() not in ionizable_nitrogens:
                         ionizable_nitrogens.append(atom.GetIdx())
-                elif atom.GetHybridization() == Chem.rdchem.HybridizationType.SP2 and number_of_bonds <= 2:
-                    if number_of_hydrogens == 0 and atom.GetIdx() not in ionizable_nitrogens:
-                        ionizable_nitrogens.append(atom.GetIdx())
-
+                    #print('932: ', ionizable_nitrogens, acidic_nitrogens)
+                elif atom.GetHybridization() == Chem.rdchem.HybridizationType.SP2 and number_of_hydrogens == 0:
+                    #print('change_ionization 934', atom.GetIdx(), atom.GetFormalCharge(), number_of_hydrogens, atom.GetHybridization())
+                    nitro = 0
+                    for bond in mol.GetBonds():
+                        if bond.GetBeginAtomIdx() == atom.GetIdx():
+                            atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
+                            if atom2.GetSymbol() == 'O':
+                                nitro += 1
+                        elif bond.GetEndAtomIdx() == atom.GetIdx():
+                            atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
+                            if atom2.GetSymbol() == 'O':
+                                nitro += 1
+                    #print('change_ionization 945', nitro)
+                    if nitro == 2:
+                        nitro_nitrogens.append(atom.GetIdx())
+                        continue
+                    # tetrazole:
+                    if number_of_hydrogens == 0 and atom.GetIdx() not in ionizable_nitrogens and \
+                        isTetrazole(atom, mol, acidic_nitrogens, ionizable_nitrogens, number_of_unsaturations) is False:
+                            ionizable_nitrogens.append(atom.GetIdx())
+                    #print('938: ', ionizable_nitrogens, acidic_nitrogens)
                     # aromatic nitrogen with hydrogen (NH conjugated in ring but not in pyridinium (C=c1[nH]cc(C)c(=C[NH2+]CCCCCC)c1=O)
-                    if number_of_hydrogens == 1 and atom.GetIsAromatic():
-                        acidic_nitrogens.append(atom.GetIdx())
+                    #print('942: ', ionizable_nitrogens, acidic_nitrogens)
 
                     # aniline nitrogens are considered sp2 (no unsaturations)
                     if number_of_unsaturations == 0 and atom.GetIdx() not in ionizable_nitrogens:
                         ionizable_nitrogens.append(atom.GetIdx())
 
-                    # tetrazole:
-                    if number_of_unsaturations == 2 and mol.GetRingInfo().IsAtomInRingOfSize(atom.GetIdx(), 5) and \
-                        atom.GetIsAromatic():
-                        idx1 = atom.GetIdx()
-                        idx2 = -1
-                        idx3 = -1
-                        idx4 = -1
+                # Diazole
+                if number_of_hydrogens == 1 and atom.GetIsAromatic() and atom.GetIdx() not in acidic_nitrogens:
+                    for bond in mol.GetBonds():
+                        # diazole
+                        if bond.GetBeginAtomIdx() == atom.GetIdx():
+                            atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
+                            if atom2.GetHybridization() == Chem.rdchem.HybridizationType.SP2 and atom.GetIsAromatic() and atom.GetSymbol() == 'N':
+                                acidic_nitrogens.append(atom.GetIdx())
+                                continue
 
-                        for bond in mol.GetBonds():
-                            if bond.GetBeginAtomIdx() == idx1:
-                                atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
-                                if atom2.GetIsAromatic():
-                                    if atom2.GetSymbol() == 'N' and idx2 == -1:
-                                        idx2 = bond.GetEndAtomIdx()
-                                    elif atom2.GetSymbol() == 'N' and idx3 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                         bond.GetEndAtomIdx() != idx2:
-                                        idx3 = bond.GetEndAtomIdx()
-                                    elif atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                         bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                        idx4 = bond.GetEndAtomIdx()
-                            elif bond.GetEndAtomIdx() == idx1:
-                                atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
-                                if atom2.GetIsAromatic():
-                                    if atom2.GetSymbol() == 'N' and idx2 == -1:
-                                        idx2 = bond.GetEndAtomIdx()
-                                    elif atom2.GetSymbol() == 'N' and idx3 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                            bond.GetEndAtomIdx() != idx2:
-                                        idx3 = bond.GetEndAtomIdx()
-                                    elif atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                            bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                        idx4 = bond.GetEndAtomIdx()
-
-                        if idx2 != -1:
-                            for bond in mol.GetBonds():
-                                if bond.GetBeginAtomIdx() == idx2:
-                                    atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
-                                    if atom2.GetIsAromatic():
-                                        if atom2.GetSymbol() == 'N' and idx3 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2:
-                                            idx3 = bond.GetEndAtomIdx()
-                                        elif atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                            idx4 = bond.GetEndAtomIdx()
-                                elif bond.GetEndAtomIdx() == idx2:
-                                    atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
-                                    if atom2.GetIsAromatic():
-                                        if atom2.GetSymbol() == 'N' and idx3 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2:
-                                            idx3 = bond.GetEndAtomIdx()
-                                        elif atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                            idx4 = bond.GetEndAtomIdx()
-
-                        if idx3 != -1:
-                            for bond in mol.GetBonds():
-                                if bond.GetBeginAtomIdx() == idx3:
-                                    atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
-                                    if atom2.GetIsAromatic():
-                                        if atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                            idx4 = bond.GetEndAtomIdx()
-                                elif bond.GetEndAtomIdx() == idx3:
-                                    atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
-                                    if atom2.GetIsAromatic():
-                                        if atom2.GetSymbol() == 'N' and idx4 == -1 and bond.GetEndAtomIdx() != idx1 and \
-                                                bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
-                                            idx4 = bond.GetEndAtomIdx()
-
-                        if idx4 != -1:
-                            if idx1 not in acidic_nitrogens and (number_of_hydrogens == 1 or
-                                                                 mol.GetAtomWithIdx(idx1).GetFormalCharge() == -1):
-                                acidic_nitrogens.append(idx1)
-                            if idx2 not in acidic_nitrogens and (number_of_hydrogens == 1 or
-                                                                 mol.GetAtomWithIdx(idx2).GetFormalCharge() == -1):
-                                acidic_nitrogens.append(idx2)
-                            if idx3 not in acidic_nitrogens and (number_of_hydrogens == 1 or
-                                                                 mol.GetAtomWithIdx(idx3).GetFormalCharge() == -1):
-                                acidic_nitrogens.append(idx3)
-                            if idx4 not in acidic_nitrogens and (number_of_hydrogens == 1 or
-                                                                 mol.GetAtomWithIdx(idx4).GetFormalCharge() == -1):
-                                acidic_nitrogens.append(idx4)
-
+                # tetrazole:
+                isTetrazole(atom, mol, acidic_nitrogens, ionizable_nitrogens, number_of_unsaturations)
+                #print('951', ionizable_nitrogens, acidic_nitrogens)
                 # activated N-H are considered acidic
                 acidic_nitrogens, isActivated = next_to_CO_Allyl(atom, mol, acidic_nitrogens)
+                #print('954', ionizable_nitrogens, acidic_nitrogens)
 
         elif atom.GetSymbol() == 'O' or atom.GetSymbol() == 'S' or atom.GetSymbol() == 'Se' or atom.GetSymbol() == 'As':
             if number_of_bonds == 1 and number_of_hydrogens == 1 and atom.GetFormalCharge() == 0:
@@ -1069,14 +1043,16 @@ def find_centers(mol, i, smiles, initial):
                         if atom2.GetSymbol() == 'N':
                             isCenter = False
                             continue
-                if isCenter is True and atom.GetIdx() not in charged_oxygens:
-                    charged_oxygens.append(atom.GetIdx())
+                if isCenter is True and atom.GetIdx() not in negative_oxygens:
+                    negative_oxygens.append(atom.GetIdx())
 
-        elif atom.GetSymbol() == 'C' and atom.GetHybridization() == Chem.rdchem.HybridizationType.SP3 and atom.GetTotalNumHs() > 0:
+        elif atom.GetSymbol() == 'C' and atom.GetHybridization() == Chem.rdchem.HybridizationType.SP3 and atom.GetTotalNumHs() > 0 \
+                and args.carbons_included is True:
             # acidic if next to C=O, C%N or S=O or between 2 double bonds
             acidic_carbons, isActivated = next_to_CO_Allyl(atom, mol, acidic_carbons)
 
-    return ionizable_nitrogens, charged_nitrogens, acidic_nitrogens, charged_oxygens, acidic_oxygens, acidic_carbons
+        #print('change_ionization 1022: ', ionizable_nitrogens, charged_nitrogens, acidic_nitrogens)
+    return ionizable_nitrogens, charged_nitrogens, acidic_nitrogens, negative_oxygens, acidic_oxygens, acidic_carbons, nitro_nitrogens
 
 
 def next_to_CO_Allyl(atom, mol, acidic_group):
@@ -1106,13 +1082,24 @@ def next_to_CO_Allyl(atom, mol, acidic_group):
             found = False
             for bond2 in mol.GetBonds():
                 atom3 = atom
-                # Note: in tetrazole, the bonds are considered aromatic (1.5)
+
                 if bond2.GetBeginAtomIdx() == atom2.GetIdx():
                     atom3 = mol.GetAtomWithIdx(bond2.GetEndAtomIdx())
+                    if atom3.GetIdx() == atom.GetIdx():
+                        continue
                     phosphate = False
                     if atom3.GetIdx() != atom.GetIdx() and bond2.GetBondTypeAsDouble() > 1.1:
-                        found_allyl += 1
-                        found = True
+                        if bond2.GetBondTypeAsDouble() == 1.5:
+                            found_allyl += 0.5
+                        else:
+                            found_allyl += 1
+                        # in case of aniline on pyridine
+                        if atom3.GetSymbol() == 'N' and bond2.GetBondTypeAsDouble() == 1.5:
+                            found_allyl += 0.25
+                            if atom3.GetFormalCharge() == 1:
+                                found_allyl += 0.75
+
+                        #found = True
                     elif atom3.GetIdx() != atom.GetIdx() and bond2.GetBondTypeAsDouble() == 1:
                         if atom2.GetSymbol() == 'P':
                             if atom3.GetSymbol() == 'O' and (atom3.GetNumImplicitHs() + atom3.GetNumExplicitHs() == 1 or atom3.GetFormalCharge() == -1):
@@ -1120,15 +1107,22 @@ def next_to_CO_Allyl(atom, mol, acidic_group):
 
                         # a negatively charged phosphate is not electron-withdrawing.
                         if phosphate:
-                            found_allyl -= 1
+                            found_allyl = 0
 
                 elif bond2.GetEndAtomIdx() == atom2.GetIdx():
                     atom3 = mol.GetAtomWithIdx(bond2.GetBeginAtomIdx())
                     phosphate = False
                     if atom3.GetIdx() != atom.GetIdx() and bond2.GetBondTypeAsDouble() > 1.1:
                         # if negatively charged phosphate, it is not acidic.
-                        found_allyl += 1
-                        found = True
+                        if bond2.GetBondTypeAsDouble() == 1.5:
+                            found_allyl += 0.5
+                        else:
+                            found_allyl += 1
+                        if atom3.GetSymbol() == 'N' and bond2.GetBondTypeAsDouble() == 1.5:
+                            found_allyl += 0.25
+                            if atom3.GetFormalCharge() == 1:
+                                found_allyl += 0.75
+                        #found = True
 
                     elif atom3.GetIdx() != atom.GetIdx() and bond2.GetBondTypeAsDouble() == 1:
                         # if negatively charged phosphate, it is not acidic.
@@ -1140,13 +1134,188 @@ def next_to_CO_Allyl(atom, mol, acidic_group):
 
                 # In case of sulfonamide/phosphonamide, we want to check if there are 2 oxygens bound to S/P
                 # If carbon, as soon as we have 1 C=C, we should not count it twice (e.g., if C=C in Ph, a second aromatic bond would be counted)
-                if found and atom2.GetSymbol() != 'S' and atom2.GetSymbol() != 'P':
-                    break
+                #if found and atom2.GetSymbol() != 'S' and atom2.GetSymbol() != 'P':
+                #    break
 
-        if found_allyl > 1 and atom.GetNumImplicitHs() + atom.GetNumExplicitHs() > 0:
+        if found_allyl > 1.3 and atom.GetNumImplicitHs() + atom.GetNumExplicitHs() > 0:
+            #print(atom.GetIdx(), 'IS ACTIVATED')
             isActivated = True
             if atom.GetIdx() not in acidic_group:
                 acidic_group.append(atom.GetIdx())
             break
 
     return acidic_group, isActivated
+
+
+def isTetrazole(atom, mol, acidic_nitrogens, ionizable_nitrogens,number_of_unsaturations):
+    #print('1085 isTetrazole: ',number_of_unsaturations, mol.GetRingInfo().IsAtomInRingOfSize(atom.GetIdx(), 5), atom.GetIsAromatic())
+    if number_of_unsaturations != 2 or mol.GetRingInfo().IsAtomInRingOfSize(atom.GetIdx(), 5) is False or atom.GetIsAromatic() is False:
+        return False
+
+    idx1 = atom.GetIdx()
+    idx2 = -1
+    idx3 = -1
+    idx4 = -1
+    withAnH = -1
+    if atom.GetTotalNumHs() == 1:
+        withAnH = idx1
+
+    for bond in mol.GetBonds():
+        if bond.GetBeginAtomIdx() == idx1:
+            atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
+            if atom2.GetIsAromatic() and atom2.GetSymbol() == 'N' or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                if idx2 == -1:
+                    idx2 = bond.GetEndAtomIdx()
+                elif idx3 == -1 and bond.GetEndAtomIdx() != idx1 and bond.GetEndAtomIdx() != idx2:
+                    idx3 = bond.GetEndAtomIdx()
+                elif idx4 == -1 and bond.GetEndAtomIdx() != idx1 and bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
+                    idx4 = bond.GetEndAtomIdx()
+                if atom2.GetTotalNumHs() == 1:
+                    withAnH = atom2.GetIdx()
+        elif bond.GetEndAtomIdx() == idx1:
+            atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
+            if atom2.GetIsAromatic() and atom2.GetSymbol() == 'N' or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                if idx2 == -1:
+                    idx2 = bond.GetEndAtomIdx()
+                elif idx3 == -1 and bond.GetBeginAtomIdx() != idx1 and bond.GetBeginAtomIdx() != idx2:
+                    idx3 = bond.GetEndAtomIdx()
+                elif idx4 == -1 and bond.GetBeginAtomIdx() != idx1 and bond.GetBeginAtomIdx() != idx2 and bond.GetBeginAtomIdx() != idx3:
+                    idx4 = bond.GetEndAtomIdx()
+                if atom2.GetTotalNumHs() == 1:
+                    withAnH = atom2.GetIdx()
+
+    if idx2 != -1:
+        for bond in mol.GetBonds():
+            if bond.GetBeginAtomIdx() == idx2:
+                atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
+                if atom2.GetIsAromatic() and atom2.GetSymbol() == 'N' or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                    if idx3 == -1 and bond.GetEndAtomIdx() != idx1 and bond.GetEndAtomIdx() != idx2:
+                        idx3 = bond.GetEndAtomIdx()
+                    elif idx4 == -1 and bond.GetEndAtomIdx() != idx1 and bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
+                        idx4 = bond.GetEndAtomIdx()
+                    if atom2.GetTotalNumHs() == 1:
+                        withAnH = atom2.GetIdx()
+            elif bond.GetEndAtomIdx() == idx2:
+                atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
+                if atom2.GetIsAromatic() and atom2.GetSymbol() == 'N' or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                    if idx3 == -1 and bond.GetBeginAtomIdx() != idx1 and bond.GetBeginAtomIdx() != idx2:
+                        idx3 = bond.GetBeginAtomIdx()
+                    elif idx4 == -1 and bond.GetBeginAtomIdx() != idx1 and bond.GetBeginAtomIdx() != idx2 and bond.GetBeginAtomIdx() != idx3:
+                        idx4 = bond.GetBeginAtomIdx()
+                    if atom2.GetTotalNumHs() == 1:
+                        withAnH = atom2.GetIdx()
+
+    if idx3 != -1:
+        for bond in mol.GetBonds():
+            if bond.GetBeginAtomIdx() == idx3:
+                atom2 = mol.GetAtomWithIdx(bond.GetEndAtomIdx())
+                #print(atom2.GetIdx(), atom2.GetIsAromatic(), atom2.GetSymbol(), mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5),
+                #      atom2.GetTotalNumHs(), atom2.GetFormalCharge())
+                if (atom2.GetIsAromatic() and atom2.GetSymbol() == 'N') or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                    if idx4 == -1 and bond.GetEndAtomIdx() != idx1 and bond.GetEndAtomIdx() != idx2 and bond.GetEndAtomIdx() != idx3:
+                        idx4 = bond.GetEndAtomIdx()
+                if atom2.GetTotalNumHs() == 1:
+                    withAnH = atom2.GetIdx()
+            elif bond.GetEndAtomIdx() == idx3:
+                atom2 = mol.GetAtomWithIdx(bond.GetBeginAtomIdx())
+                #print(atom2.GetIdx(), atom2.GetIsAromatic(), atom2.GetSymbol(), mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5),
+                #      atom2.GetTotalNumHs(), atom2.GetFormalCharge())
+                if (atom2.GetIsAromatic() and atom2.GetSymbol() == 'N') or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetTotalNumHs() == 1) or \
+                    (mol.GetRingInfo().IsAtomInRingOfSize(atom2.GetIdx(), 5) and atom2.GetFormalCharge() == -1):
+                    if idx4 == -1 and bond.GetBeginAtomIdx() != idx1 and bond.GetBeginAtomIdx() != idx2 and bond.GetBeginAtomIdx() != idx3:
+                        idx4 = bond.GetBeginAtomIdx()
+                if atom2.GetTotalNumHs() == 1:
+                    withAnH = atom2.GetIdx()
+
+    #print('1158 isTetrazole: ', idx1, idx2, idx3, idx4)
+    if idx4 != -1:
+        if idx1 not in acidic_nitrogens and idx1 == withAnH:
+            acidic_nitrogens.append(idx1)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+        if idx2 not in acidic_nitrogens and idx2 == withAnH:
+            acidic_nitrogens.append(idx2)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+
+        if idx3 not in acidic_nitrogens and idx3 == withAnH:
+            acidic_nitrogens.append(idx3)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+        if idx4 not in acidic_nitrogens and idx4 == withAnH:
+            acidic_nitrogens.append(idx4)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+
+        if idx1 not in acidic_nitrogens and mol.GetAtomWithIdx(idx1).GetFormalCharge() == -1:
+            ionizable_nitrogens.append(idx1)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+        if idx2 not in acidic_nitrogens and mol.GetAtomWithIdx(idx2).GetFormalCharge() == -1:
+            ionizable_nitrogens.append(idx2)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+        if idx3 not in acidic_nitrogens and mol.GetAtomWithIdx(idx3).GetFormalCharge() == -1:
+            ionizable_nitrogens.append(idx3)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+            if idx4 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx4)
+
+        if idx4 not in acidic_nitrogens and mol.GetAtomWithIdx(idx4).GetFormalCharge() == -1:
+            ionizable_nitrogens.append(idx4)
+            if idx2 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx2)
+            if idx3 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx3)
+            if idx1 in ionizable_nitrogens:
+                ionizable_nitrogens.remove(idx1)
+        #print('Return true')
+        return True
+    #print('return false')
+    return False

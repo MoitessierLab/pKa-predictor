@@ -11,6 +11,7 @@
 # pip install rdkit
 # pip install seaborn
 # pip install hyperopt
+# To vizualize smiles, you may use: https://www.cheminfo.org/flavor/malaria/Utilities/SMILES_generator___checker/index.html
 
 import torch
 import numpy as np
@@ -21,10 +22,11 @@ import time
 from torch_geometric.loader import DataLoader
 
 from hyperoptimize import hyperoptimize
+from plot_and_print import print_model_txt
 from prepare_set import generate_datasets, dump_datasets
 from argParser import argsParser
 from utils import set_cuda_visible_device, load_data
-from train_pKa_predictor import training, testing, inferring
+from train_pKa_predictor import training, testing, inferring, testing_with_IC
 from usage import usage
 
 
@@ -93,6 +95,7 @@ if __name__ == '__main__':
             'learning_rate': args.lr,
             'weight_decay': args.weight_decay,
             'scheduler_gamma': args.scheduler_gamma,
+            #'model_node_embedding_size': args.node_embedding_size,
             'model_embedding_size': args.embedding_size,
             'model_gnn_layers': args.n_graph_layers,
             'model_fc_layers': args.n_FC_layers,
@@ -153,6 +156,28 @@ if __name__ == '__main__':
 
     elif args.mode == 'usage':
         usage()
+
+    elif args.mode == 'write_model':
+        hypers = {
+            'batch_size': args.batch_size,
+            'learning_rate': args.lr,
+            'weight_decay': args.weight_decay,
+            'scheduler_gamma': args.scheduler_gamma,
+            #'node_model_embedding_size': args.node_embedding_size,
+            'model_embedding_size': args.embedding_size,
+            'model_gnn_layers': args.n_graph_layers,
+            'model_fc_layers': args.n_FC_layers,
+            'model_dropout_rate': args.dropout_rate,
+            'model_dense_neurons': args.model_dense_neurons,
+            'model_attention_heads': args.model_attention_heads,
+            'model_node_feature_size': args.node_feature_size,
+            'model_edge_feature_size': args.edge_feature_size,
+        }
+
+        print_model_txt(hypers, args)
+
+    elif args.mode == 'test_with_IC':
+        testing_with_IC(args)
 
     else:
         inferring(args)

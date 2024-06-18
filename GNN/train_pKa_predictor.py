@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from utils import load_data, calculate_metrics, average, optimizer_to
 from plot_and_print import plot_figure1, plot_figure2, plot_figure3, print_results, print_inference, print_results_test
-from prepare_set import generate_infersets, dump_datasets
+from prepare_set import generate_infersets, dump_datasets, generate_datasets
 from GNN import GNN
 from train import train, evaluate
 from torch_geometric.loader import DataLoader
@@ -60,12 +60,12 @@ def training(train_dataset, best_hypers, train_loader, test_loader, args):
     for epoch in range(first_epoch, args.epoch + 1):
         # Training
         best_trained_model.train()
-        train_loss = train(epoch, best_trained_model, train_loader, optimizer, loss_fn)
+        train_loss = train(epoch, best_trained_model, train_loader, optimizer, loss_fn, args)
         train_loss_all.append(train_loss)
     
         # Validation
         best_trained_model.eval()
-        val_loss = evaluate(epoch, best_trained_model, test_loader, loss_fn)
+        val_loss = evaluate(epoch, best_trained_model, test_loader, loss_fn, args)
         test_loss_all.append(val_loss)
         now = time.time()
         print('| epoch # %4s | train loss %6.3f       | test loss %6.3f        | time (min): %8.2f  | time (hours): %8.2f          |               '
@@ -76,9 +76,21 @@ def training(train_dataset, best_hypers, train_loader, test_loader, args):
         # save the model is better on the validation set or close to the best
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(best_trained_model.state_dict(), args.save_dir + args.output + '_' + str(epoch) + '.pth')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': best_trained_model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': train_loss_all,
+                'test_loss': test_loss_all,
+            }, args.save_dir + args.output + '_' + str(epoch) + '.pth')
         elif val_loss < best_val_loss + 0.025:
-            torch.save(best_trained_model.state_dict(), args.save_dir + args.output + '_' + str(epoch) + '.pth')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': best_trained_model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'train_loss': train_loss_all,
+                'test_loss': test_loss_all,
+            }, args.save_dir + args.output + '_' + str(epoch) + '.pth')
 
         # overwrite the "last" model
         torch.save({
@@ -242,6 +254,7 @@ def inferring(args):
         'learning_rate': args.lr,
         'weight_decay': args.weight_decay,
         'scheduler_gamma': args.scheduler_gamma,
+        #'model_atom_embedding_size': args.atom_embedding_size,
         'model_embedding_size': args.embedding_size,
         'model_gnn_layers': args.n_graph_layers,
         'model_fc_layers': args.n_FC_layers,
@@ -274,18 +287,19 @@ def inferring(args):
     library_infer_ionization_states = []
 
     for i, small_mol in tqdm(data.iterrows(), total=data.shape[0]):
-
         if args.verbose > 1:
             print("|        | Initial inference                                                                        "
                   "                         |")
+        initial_proposed_center = int(small_mol['Index']) + 1
+
         infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
             infer_proposed_centers, infer_neutral, infer_ionization_states = \
             infer(i, small_mol, True, [], infer_path, model_params, device, best_hypers, loss_fn, args)
 
         if args.verbose > 1:
             print_inference(infer_predicts, infer_labels, infer_smiles, infer_mol_num, infer_centers,
-                            infer_proposed_centers, args)
-
+                            initial_proposed_center, args)
+        #print('Train pka pred 300')
         all_infer_predicts = []
         all_infer_labels = []
         all_infer_smiles = []
@@ -355,12 +369,17 @@ def inferring(args):
                     all_infer_ionization_states.append(infer_ionization_states[0][max_pKa_mol_neutral])
 
                 if max_pKa_mol != -1:
-                    if small_mol['Smiles'] == infer_smiles[max_pKa_mol] and \
-                            small_mol['Center'] == infer_centers[max_pKa_mol]:
-                        break
+                    if 'Index' in small_mol.keys():
+                        if small_mol['Smiles'] == infer_smiles[max_pKa_mol] and \
+                                small_mol['Index'] == infer_centers[max_pKa_mol]:
+                            break
+                        small_mol['Index'] = infer_centers[max_pKa_mol]
+                    else:
+                        if 'Index' not in small_mol.keys():
+                            small_mol['Index'] = []
+                        small_mol['Index'].append(infer_centers[max_pKa_mol])
 
                     small_mol['Smiles'] = infer_smiles[max_pKa_mol]
-                    small_mol['Center'] = infer_centers[max_pKa_mol]
                     ionization_state = infer_ionization_states[0][max_pKa_mol]
                     all_infer_predicts.append(infer_predicts[max_pKa_mol])
                     all_infer_labels.append(infer_labels[max_pKa_mol])
@@ -388,7 +407,7 @@ def inferring(args):
                     break
                 elif args.verbose > 1:
                     print_inference(infer_predicts, infer_labels, infer_smiles, infer_mol_num, infer_centers,
-                                    infer_proposed_centers, args)
+                                    initial_proposed_center, args)
 
             if len(infer_predicts) > 0:
                 for item in range(len(infer_predicts)):
@@ -406,7 +425,7 @@ def inferring(args):
             print("|        | Final: %-91s----------------|" % (all_infer_smiles[0]))
 
         print_inference(all_infer_predicts, all_infer_labels, all_infer_smiles, all_infer_mol_num,
-                        all_infer_centers, all_infer_proposed_centers, args)
+                        all_infer_centers, initial_proposed_center, args)
 
         for item in range(len(all_infer_predicts)):
             library_infer_predicts.append(all_infer_predicts[item])
@@ -449,8 +468,8 @@ def infer(i, small_mol, initial, ionization_states, infer_path, model_params, de
                       edge_dim=infer_dataset[0].edge_attr.shape[1],
                       model_params=model_params)
 
-    model_infer.load_state_dict(torch.load(args.model_dir + args.model_name, map_location='cpu'))
-    model_infer.to(device)
+    checkpoint = torch.load(args.model_dir + args.model_name, map_location=torch.device('cpu'))
+    model_infer.load_state_dict(checkpoint['model_state_dict'])
     model_infer.eval()
 
     infer_loader = DataLoader(infer_data, best_hypers["batch_size"],
@@ -462,3 +481,73 @@ def infer(i, small_mol, initial, ionization_states, infer_path, model_params, de
 
     return infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
         infer_proposed_centers, infer_neutral, infer_ionization_states
+
+
+def testing_with_IC(args):
+    test_file = args.data_path + args.input
+    test_dataset = generate_datasets(test_file, 'Test', args)
+    test_path = args.test_pickled
+    dump_datasets(test_dataset, test_path)
+
+    device = torch.device("cpu")
+
+    best_hypers = {
+        'batch_size': args.batch_size,
+        'learning_rate': args.lr,
+        'weight_decay': args.weight_decay,
+        'scheduler_gamma': args.scheduler_gamma,
+        #'model_atom_embedding_size': args.atom_embedding_size,
+        'model_embedding_size': args.embedding_size,
+        'model_gnn_layers': args.n_graph_layers,
+        'model_fc_layers': args.n_FC_layers,
+        'model_dropout_rate': 0,
+        'model_dense_neurons': args.model_dense_neurons,
+        'model_attention_heads': args.model_attention_heads,
+    }
+
+    model_params = {k: v for k, v in best_hypers.items() if k.startswith("model_")}
+    loss_fn = torch.nn.MSELoss()
+    model_test = GNN(feature_size=test_dataset[0].x.shape[1],
+                             edge_dim=test_dataset[0].edge_attr.shape[1],
+                             model_params=model_params)
+
+    print('| Reading the files, preparing the features and computing pKa                                                                |')
+    print('|----------------------------------------------------------------------------------------------------------------------------|')
+
+
+    if args.test_data != "none":
+        test_data = load_data(args.test_pickled)
+    else:
+        test_data = load_data(args.train_pickled)
+    test_loader = DataLoader(test_data, best_hypers["batch_size"],
+                              num_workers=0, shuffle=False)
+
+    checkpoint = torch.load(args.model_dir + args.model_name, map_location=torch.device('cpu'))
+    model_test.load_state_dict(checkpoint['model_state_dict'])
+    model_test.eval()
+
+    print('| mol #  | SMILES                                                                                    |          pKa          | ')
+    print('|        |                                                                                           |  obs. | pred. | error |')
+    print('|----------------------------------------------------------------------------------------------------------------------------|')
+    #testing(model_test, test_loader, test_loader, args)
+    test_loss, test_predicts, test_labels, test_smiles, test_smiles_base, test_centers, test_proposed_centers, \
+        test_mol_num, test_neutral, test_source, test_error, test_ionization_states = \
+        final_test(model=model_test, loader=test_loader, loss_fn=loss_fn, args=args)
+
+    test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error = \
+        average(test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error, args)
+
+    for i in range(len(test_predicts)):
+        print('| %6.0f | %-89s | %5.2f | %5.2f | %5.2f |' % (test_mol_num[i], test_smiles[i], test_labels[i], test_predicts[i],
+                                                             abs(test_labels[i]-test_predicts[i])))
+    print('|----------------------------------------------------------------------------------------------------------------------------|')
+    print('| test loss %-106.3f       |' % test_loss)
+    number_of_graphs = args.n_random_smiles
+    if number_of_graphs == 0:
+        number_of_graphs = 1
+
+
+    print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
+    print('| Testing Set averaged over original and %3s random smiles  %-60s     |' % (str(int(number_of_graphs-1)), ' '))
+    calculate_metrics(test_predicts, test_labels, test_mol_num, args)
+    print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)

@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from rdkit import Chem
 
+from GNN import GNN
 from utils import find_protonation_state, compute_mae, search
 
 seed = 42
@@ -172,17 +173,74 @@ def print_results_test(predicts, labels, smiles, centers, proposed_centers, mol_
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
 
-def print_inference(preds, labels, smiles, mol_num, centers, proposed_centers, args):
+def print_inference(preds, labels, smiles, mol_num, centers, proposed_center, args):
 
     if args.mode == 'pH':
         preds, labels, smiles, mol_num = find_protonation_state(preds, labels, smiles, mol_num, args)
 
     if args.mode == 'test':
         for i in range(len(preds)):
-            print('| %6.0f | %-81s |  %3s  |  %3s  | %5.2f | %5.2f |' % (mol_num[i], smiles[i], proposed_centers[i],
+            print('| %6.0f | %-81s |  %3s  |  %3s  | %5.2f | %5.2f |' % (mol_num[i], smiles[i], proposed_center,
                                                                          centers[i], labels[i], preds[i]))
     else:
         for i in range(len(preds)):
             print('| %6.0f | %-88s | %6s | %13.2f |' % (mol_num[i], smiles[i], centers[i], preds[i]))
 
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
+
+
+def print_model_txt(hypers, args):
+    if args.load_model != 'none':
+        print('| Writing the model                                                                                                          |')
+        print('|----------------------------------------------------------------------------------------------------------------------------|')
+        model_params = {k: v for k, v in hypers.items() if k.startswith("model_")}
+
+        trained_model = GNN(feature_size=hypers['model_node_feature_size'],
+                            edge_dim=hypers['model_edge_feature_size'],
+                            model_params=model_params)
+
+        checkpoint = torch.load(args.model_dir + args.load_model, map_location=torch.device('cpu'))
+        trained_model.load_state_dict(checkpoint['model_state_dict'])
+        with open(args.output + args.model_txt_file, 'w') as f:
+            for name, param in trained_model.named_parameters():
+                #if param.requires_grad:
+                f.write(name)
+                f.write('\n')
+                # print('param.data shape: ', param.data.shape)
+                tensor_shape = list(map(int, param.data.shape))
+                tensor_list = list(tensor_shape)
+                tensor_dim = len(list(tensor_shape))
+                f.write(str(tensor_dim))
+                f.write('\n')
+                for dim in range(tensor_dim):
+                    f.write(str(tensor_list[dim]))
+                    f.write('\n')
+
+                # savetxt cannot take tensors with more than 2 dimensions
+                if len(list(tensor_shape)) > 2:
+                    for slice_2d in param.data:
+                        np.savetxt(f, slice_2d, fmt='%12.8f')
+                else:
+                    np.savetxt(f, param.data, fmt='%12.8f')
+
+            # below if for running_mean and running_var
+            for name, param in trained_model.named_buffers():
+                #if param.requires_grad:
+                f.write(name)
+                f.write('\n')
+                # print('param.data shape: ', param.data.shape)
+                tensor_shape = list(map(int, param.data.shape))
+                tensor_list = list(tensor_shape)
+                tensor_dim = len(list(tensor_shape))
+                f.write(str(tensor_dim))
+                f.write('\n')
+                for dim in range(tensor_dim):
+                    f.write(str(tensor_list[dim]))
+                    f.write('\n')
+
+                # savetxt cannot take tensors with more than 2 dimensions
+                if len(list(tensor_shape)) > 2:
+                    for slice_2d in param.data:
+                        np.savetxt(f, slice_2d, fmt='%12.8f')
+                elif len(list(tensor_shape)) > 0:
+                    np.savetxt(f, param.data, fmt='%12.8f')

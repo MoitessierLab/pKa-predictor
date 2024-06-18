@@ -33,7 +33,7 @@ print('|-----------------------------------------------------------------------|
 
 def load_parameters():
     # Parameters set here.
-    pm = {'dir': '/home/moitessi/pKaPredictor',
+    pm = {'dir': '/home/moitessi/pKaPredictor2',
           'data_dir': '/data/',
           'fig_dir': 'Figures',
           'model_dir': 'Models',
@@ -59,43 +59,52 @@ tanimoto_df = pd.DataFrame(columns=tanimoto)
 docked = []
 
 # loop over files in directory and subdirectories
-allsmiles = pd.read_csv(dir_path + '/Full_set_clean.csv')
+allsmiles = pd.read_csv(dir_path + '/full_set.csv')
 
 print('| Smiles loaded                                                         |')
 
-
+Novartis_test_set = True
 # Make Test Set
 ##############################################################################################################
-test_set = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
-for i in tqdm(range(pm['num_test_set_clusters']), total=pm['num_test_set_clusters'], 
-                                                  desc="| Preparing Test Set                                                    |\n"):
-    origin_seed = random.randint(0, len(allsmiles))-1
-    test_set_origin = allsmiles['Smiles'].iloc[origin_seed]  # pick a random id from docked_ids to be the test set origin
- 
-    # Get the Tanimoto similarity between the test set origin and all smiles
+if Novartis_test_set is False:
+    test_set = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
+    for i in tqdm(range(pm['num_test_set_clusters']), total=pm['num_test_set_clusters'],
+                                                      desc="| Preparing Test Set                                                    |\n"):
+        origin_seed = random.randint(0, len(allsmiles))-1
+        test_set_origin = allsmiles['Smiles'].iloc[origin_seed]  # pick a random id from docked_ids to be the test set origin
 
-    # keep these 500 and call them the test ids
-    origin_mol = AllChem.MolFromSmiles(test_set_origin)
-    origin_bit = AllChem.GetMorganFingerprintAsBitVect(origin_mol, radius=2, nBits=2048)
-    origin_tanimoto_coefficient = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
+        # Get the Tanimoto similarity between the test set origin and all smiles
 
-    for test_compound in allsmiles['Smiles']:
-        test_mol = Chem.MolFromSmiles(test_compound)
-        test_bit = AllChem.GetMorganFingerprintAsBitVect(test_mol, radius=2, nBits=2048)
-        tanimoto_coefficient = DataStructs.TanimotoSimilarity(origin_bit,test_bit)
-        origin_tanimoto_coefficient = pd.concat([origin_tanimoto_coefficient, pd.DataFrame({'Smiles': [test_compound],
-                                                                                            'tanimoto_coefficient': [tanimoto_coefficient]})])
+        # keep these 500 and call them the test ids
+        origin_mol = AllChem.MolFromSmiles(test_set_origin)
+        origin_bit = AllChem.GetMorganFingerprintAsBitVect(origin_mol, radius=2, nBits=2048)
+        origin_tanimoto_coefficient = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
 
-    # Add id column of allsmiles to origin_tanimoto_coefficient and merge on smiles
-    test_set_cluster = origin_tanimoto_coefficient.merge(allsmiles, on='Smiles')
-    # Sort origin_tanimoto_coefficient by tanimoto_coefficient and take top 500
-    test_set_cluster = test_set_cluster.sort_values(by=['tanimoto_coefficient'], ascending=False)
-    test_set_cluster = test_set_cluster.head(pm['test_set_cluster_size'])
-    test_set = pd.concat([test_set, test_set_cluster])
- 
-# Get size for test set dataframe
-print('Size of test set:', len(test_set))
-test_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'test_set.csv', index=False)
+        for test_compound in allsmiles['Smiles']:
+            test_mol = Chem.MolFromSmiles(test_compound)
+            test_bit = AllChem.GetMorganFingerprintAsBitVect(test_mol, radius=2, nBits=2048)
+            tanimoto_coefficient = DataStructs.TanimotoSimilarity(origin_bit, test_bit)
+            origin_tanimoto_coefficient = pd.concat([origin_tanimoto_coefficient, pd.DataFrame({'Smiles': [test_compound],
+                                                                                                'tanimoto_coefficient': [tanimoto_coefficient]})])
+
+        # Add id column of allsmiles to origin_tanimoto_coefficient and merge on smiles
+        test_set_cluster = origin_tanimoto_coefficient.merge(allsmiles, on='Smiles')
+        # Sort origin_tanimoto_coefficient by tanimoto_coefficient and take top 500
+        test_set_cluster = test_set_cluster.sort_values(by=['tanimoto_coefficient'], ascending=False)
+        test_set_cluster = test_set_cluster.head(pm['test_set_cluster_size'])
+        test_set = pd.concat([test_set, test_set_cluster])
+    # Get size for test set dataframe
+    print('Size of test set:', len(test_set))
+    test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set.csv', index=False)
+else:
+    test_set = pd.DataFrame(columns=['Name', 'pKa', 'Center', 'Index', 'Smiles', 'Source', 'Error'])
+    for index, row in allsmiles.iterrows():
+        if 'Novartis' in row['Source']:
+            test_set = pd.concat([test_set, pd.DataFrame([row], columns=row.index)])
+    # Get size for test set dataframe
+    print('Size of test set:', len(test_set))
+    test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set_Novartis.csv', index=False)
+
 
 # Make Train Set
 ##############################################################################################################
@@ -106,7 +115,7 @@ train_smiles = copy.deepcopy(allsmiles)
 # Drop test set from train_smiles
 train_smiles = train_smiles[~train_smiles['Smiles'].isin(test_set['Smiles'])]
 
-most_similar_to_in_train = pd.DataFrame(columns=['Smiles','tanimoto_coefficient'])
+most_similar_to_in_train = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
 for train_compound in tqdm(train_smiles['Smiles'], total=len(train_smiles), 
                                                    desc="| Preparing Training Set                                                |\n"):
     train_mol = Chem.MolFromSmiles(train_compound)
@@ -129,8 +138,13 @@ for MAX_TANIMOTO in tanimoto:
     print('| Maximum Tanimoto coefficient: %5.3f, Size of the training set: %6.0f |' % (MAX_TANIMOTO, len(train_set)))
     # Put size of train_set into row 'train size and tanimoto column into tanimoto_df for plotting
     tanimoto_df.loc['train_set_size', MAX_TANIMOTO] = len(train_set)
-    train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_' + str(MAX_TANIMOTO) + '.csv', index=False)
-    tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df.csv', index=False)
+    if Novartis_test_set is False:
+        train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_' + str(MAX_TANIMOTO) + '.csv', index=False)
+        tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df.csv', index=False)
+    else:
+        train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_fromNS_' + str(MAX_TANIMOTO) + '.csv', index=False)
+        tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df_fromNS.csv', index=False)
+
 
 
 # Plot using matplot lib train_set_size over tanimoto

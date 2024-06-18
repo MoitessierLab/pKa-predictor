@@ -165,15 +165,25 @@ def get_node_features(mol, center, args):
 def get_edge_features(mol, args):
     edges_features = []
     for bond in mol.GetBonds():
-        edge_features = []
+        edge_features1 = []
+        edge_features2 = []
         # Feature 1: Bond type (#1-4)
         if args.bond_feature_bond_order is True:
-            edge_features += one_hot(bond.GetBondTypeAsDouble(),
-                                     [1, 1.5, 2, 3])
+            #if args.bond_feature_focused is True:
+            #    edge_features1 += one_hot(bond.GetBondTypeAsDouble(),
+            #                              [1, 1.5, (2 or 3)])
+            #    edge_features2 += one_hot(bond.GetBondTypeAsDouble(),
+            #                              [1, 1.5, (2 or 3)])
+            #else:
+            edge_features1 += one_hot(bond.GetBondTypeAsDouble(),
+                                      [1, 1.5, 2, 3])
+            edge_features2 += one_hot(bond.GetBondTypeAsDouble(),
+                                      [1, 1.5, 2, 3])
 
         # Feature 2: Conjugation (#5)
-        if args.bond_feature_conjugation is True:
-            edge_features.append(bond.GetIsConjugated())
+        if args.bond_feature_conjugation is True and args.bond_feature_charge_conjugation is False and args.bond_feature_focused is False:
+            edge_features1.append(bond.GetIsConjugated())
+            edge_features2.append(bond.GetIsConjugated())
 
         # Feature 3: bond polarization (based on electronegativity, #6)
         if args.bond_feature_polarization is True:
@@ -182,28 +192,126 @@ def get_edge_features(mol, args):
             polarization = 0
             if element1 in electronegativity and element2 in electronegativity:
                 polarization = (electronegativity[element1] - electronegativity[element2]) / electronegativity['Range']
-            edge_features += [polarization]
+            edge_features1 += [polarization]
+            edge_features2 += [-polarization]
 
         # strong conjugation (with charge, #7)
-        if args.bond_feature_charge_conjugation is True:
+        if args.bond_feature_charge_conjugation is True or args.bond_feature_focused is True:
             atom1 = bond.GetBeginAtomIdx()
             atom2 = bond.GetEndAtomIdx()
+            central_atom = -1
+            peripheral_atom = -1
             strongConjugation = 0
-            if bond.GetIsConjugated():
-                if bond.GetBondTypeAsDouble() == 1:
-                    if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
-                       (mol.GetAtomWithIdx(atom2).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
-                        strongConjugation = 1
+            weakConjugation = 0
+            # if not conjugated, but one atom with a heteroatom and the other one in a double bond
+            if bond.GetBondTypeAsDouble() == 1:
+                if mol.GetAtomWithIdx(atom1).GetSymbol() == "O" or mol.GetAtomWithIdx(atom1).GetSymbol() == "N":
+                    central_atom = atom2
+                    peripheral_atom = atom1
+                elif mol.GetAtomWithIdx(atom2).GetSymbol() == "O" or mol.GetAtomWithIdx(atom2).GetSymbol() == "N":
+                    central_atom = atom1
+                    peripheral_atom = atom2
 
-                if bond.GetBondTypeAsDouble() != 1:
-                    if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
-                       (mol.GetAtomWithIdx(atom2).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
-                        strongConjugation = 1
+                if central_atom != -1 and mol.GetAtomWithIdx(peripheral_atom).GetFormalCharge() == -1 and mol.GetAtomWithIdx(central_atom).GetSymbol() == "C":
+                    for bond2 in mol.GetBonds():
+                        if bond2.GetBondTypeAsDouble() == 1:
+                            continue
+                        if bond2.GetBeginAtomIdx() == central_atom and (mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "O" or
+                                                                        mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "N"):
+                            strongConjugation = 1
+                            break
+                        elif bond2.GetEndAtomIdx() == central_atom and (mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "O" or
+                                                                        mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "N"):
+                            strongConjugation = 1
+                            break
+                if central_atom != -1 and mol.GetAtomWithIdx(peripheral_atom).GetFormalCharge() == 0 and mol.GetAtomWithIdx(central_atom).GetSymbol() == "C":
+                    for bond2 in mol.GetBonds():
+                        if bond2.GetBondTypeAsDouble() == 1:
+                            continue
+                        if bond2.GetBeginAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge() == 1:
+                            strongConjugation = 1
+                            break
+                        elif bond2.GetEndAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge() == 1:
+                            strongConjugation = 1
+                            break
+                        if bond2.GetBeginAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge() == 0:
+                            weakConjugation = 1
+                            break
+                        elif bond2.GetEndAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge() == 0:
+                            weakConjugation = 1
+                            break
 
-            edge_features += [strongConjugation]
+            elif bond.GetBondTypeAsDouble() == 2:
+                if mol.GetAtomWithIdx(atom1).GetSymbol() == "O" or mol.GetAtomWithIdx(atom1).GetSymbol() == "N":
+                    central_atom = atom2
+                    peripheral_atom = atom1
+                elif mol.GetAtomWithIdx(atom2).GetSymbol() == "O" or mol.GetAtomWithIdx(atom2).GetSymbol() == "N":
+                    central_atom = atom1
+                    peripheral_atom = atom2
+
+                if central_atom != -1 and mol.GetAtomWithIdx(peripheral_atom).GetFormalCharge() == 1 and mol.GetAtomWithIdx(central_atom).GetSymbol() == "C":
+                    for bond2 in mol.GetBonds():
+                        if bond2.GetBondTypeAsDouble() != 1:
+                            continue
+                        #print(bond2.GetBeginAtomIdx(), bond2.GetEndAtomIdx(), mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol())
+                        if bond2.GetBeginAtomIdx() == central_atom and (mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "O" or
+                                                                        mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "N"):
+                            strongConjugation = 1
+                            break
+                        elif bond2.GetEndAtomIdx() == central_atom and (mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "O" or
+                                                                        mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "N"):
+                            strongConjugation = 1
+                            break
+                elif central_atom != -1 and mol.GetAtomWithIdx(peripheral_atom).GetFormalCharge() == 0 and mol.GetAtomWithIdx(central_atom).GetSymbol() == "C":
+                    for bond2 in mol.GetBonds():
+                        if bond2.GetBondTypeAsDouble() != 1:
+                            continue
+                        #print(central_atom, bond2.GetBeginAtomIdx(), bond2.GetEndAtomIdx(), mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol(),
+                        #      mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol(), \
+                        #      mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge(), mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge())
+                        if bond2.GetBeginAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge() == -1:
+                            weakConjugation = 0
+                            strongConjugation = 1
+                            break
+                        elif bond2.GetEndAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge() == -1:
+                            weakConjugation = 0
+                            strongConjugation = 1
+                            break
+                        if bond2.GetBeginAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge() == 0 \
+                                and (mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "O" or
+                                     mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "N"):
+                            weakConjugation = 1
+                        elif bond2.GetEndAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge() == 0 \
+                                and (mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "O" or
+                                     mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "N"):
+                            weakConjugation = 1
+
+            # if bond.GetIsConjugated():
+            #    if bond.GetBondTypeAsDouble() == 1:
+            #        if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
+            #           (mol.GetAtomWithIdx(atom2).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
+            #            strongConjugation = 1
+            #
+            #    if bond.GetBondTypeAsDouble() != 1:
+            #        if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
+            #           (mol.GetAtomWithIdx(atom2).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
+            #            strongConjugation = 1
+
+            if args.bond_feature_conjugation is True:
+                if args.bond_feature_charge_conjugation is False and strongConjugation == 1:
+                    weakConjugation = 1
+                #if args.bond_feature_focused is False:
+                edge_features1 += [weakConjugation]
+                edge_features2 += [weakConjugation]
+
+            if args.bond_feature_charge_conjugation is True:
+                edge_features1 += [strongConjugation]
+                edge_features2 += [strongConjugation]
+            #print(atom1, atom2, bond.GetIsConjugated(), mol.GetAtomWithIdx(atom1).GetFormalCharge(), mol.GetAtomWithIdx(atom2).GetFormalCharge(),
+            #      weakConjugation, strongConjugation)
 
         # Append edge features to matrix (twice, per direction, 7 features)
-        edges_features += [edge_features, edge_features]
+        edges_features += [edge_features1, edge_features2]
 
     edges_features = np.array(edges_features)
     return torch.tensor(edges_features, dtype=torch.float)

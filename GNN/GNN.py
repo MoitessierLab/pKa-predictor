@@ -10,6 +10,7 @@ class GNN(torch.nn.Module):
     def __init__(self, feature_size, edge_dim, model_params):
         super(GNN, self).__init__()
         embedding_size = model_params["model_embedding_size"]
+        #node_embedding_size = model_params["model_node_embedding_size"]
         self.gnn_layers = model_params["model_gnn_layers"]
         self.dense_layers = model_params["model_fc_layers"]
         self.p = model_params["model_dropout_rate"]
@@ -34,7 +35,7 @@ class GNN(torch.nn.Module):
         self.bn1 = BatchNorm1d(embedding_size)
 
         for i in range(self.gnn_layers-1):
-            self.conv_layers.append(GATv2Conv(embedding_size, 
+            self.conv_layers.append(GATv2Conv(embedding_size,
                                               embedding_size,
                                               heads=n_heads,
                                               edge_dim=edge_dim,
@@ -50,16 +51,18 @@ class GNN(torch.nn.Module):
         # Linear layers the formal charges (molecule and ionization center) will be added at this stage
         # And acid and base embeddings will be concatenated
         self.linear1 = Linear(embedding_size + 2, dense_neurons)
+
+        #print('fc: ', self.dense_layers)
         for i in range(self.dense_layers-1):
-            self.fc_layers.append(Linear(dense_neurons, int(dense_neurons/2)))
-            dense_neurons = int(dense_neurons/2)
+            self.fc_layers.append(Linear(dense_neurons, int(dense_neurons/4)))
+            dense_neurons = int(dense_neurons/4)
         
         self.out_layer = Linear(dense_neurons, 1) 
 
     def forward(self, x, edge_index, edge_attr, node_index, mol_formal_charge, center_formal_charge, batch_index):
         # At this stage, x is a single tensor containing all the atoms of all the batch molecules. The references to
         # the corresponding molecules are given in batch_index
-
+        #
         # Initial GATv2Conv transformation
         x = self.conv1(x, edge_index, edge_attr)
         x = torch.relu(self.transf1(x))
@@ -71,14 +74,15 @@ class GNN(torch.nn.Module):
             x = torch.relu(self.transf_layers[i](x))
             x = self.bn_layers[i](x)
 
-        # Removing all the atoms not part of the batch.
-        x = x[node_index]
-
         # Removing all the atoms' molecule indexes (which atom is in which molecule) in the batch not part of the local environment.
+        # But are still all there. We remove then from the node features
+        # x may contain several molecules (the node indexes are for all of them)
+        x = x[node_index]
+        # And update the batch_index (tensor like: 0 0 0 0 0 1 1 1 1... indicating first 5 atoms are from the first
+        # molecule,...
         mask = torch.zeros(batch_index.numel(), dtype=torch.bool)
         mask[node_index] = True
         batch_index = batch_index[mask]
-
         # Attention
         x = self.att(x, batch_index)
 

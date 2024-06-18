@@ -1,3 +1,5 @@
+import time
+
 import torch
 import numpy as np
 import pandas as pd
@@ -27,25 +29,6 @@ def generate_datasets(filename, train_or_test, args):
     for i, mol in tqdm(data.iterrows(), total=data.shape[0]):
         keep = False
         source = mol['Source']
-        if args.train_source_1 == 'None':
-            keep = True
-        elif args.test_source_1 in source or args.test_source_2 in source or args.test_source_3 in source or \
-                args.test_source_4 in source or args.test_source_5 in source:
-            if train_or_test == 'Test':
-                keep = True
-
-        if args.train_source_1 in source or args.train_source_2 in source or args.train_source_3 in source or \
-                args.train_source_4 in source or args.train_source_5 in source or args.train_source_6 in source or \
-                args.train_source_7 in source or args.train_source_8 in source or args.train_source_9 in source or \
-                args.train_source_10 in source:
-            if train_or_test == 'Train':
-                keep = True
-            else:  # If taken in train, it should not be taken in test
-                keep = False
-
-        if keep is False:
-            continue
-
         smiles_A = mol['Smiles']
 
         # In case of extra lines in the csv
@@ -69,7 +52,7 @@ def generate_datasets(filename, train_or_test, args):
 
         mol_obj_B = copy.deepcopy(mol_obj_A)
 
-        if args.verbose > 0:
+        if args.verbose > 0 and args.mode != 'test_with_IC':
             print('| original: %-112s |' % smiles_A)
 
         # Removing the hydrogen bonds (eg: [OH:15] should become O
@@ -92,7 +75,8 @@ def generate_datasets(filename, train_or_test, args):
         smiles_A = smiles_A.replace('[C-]', 'C')
 
         smiles_A = addHs(smiles_A, mol_obj_A, mol_obj_A.GetNumAtoms())
-        print('|  revised: %-112s |' % smiles_A)
+        if args.verbose > 0 and args.mode != 'test_with_IC':
+            print('|  revised: %-112s |' % smiles_A)
 
         # Get ionisation center index
         center = int(mol['Index'])
@@ -120,10 +104,38 @@ def generate_datasets(filename, train_or_test, args):
         elif args.acid_or_base == "base":
             edge_features = edge_features_B
         elif args.acid_or_base == "both":
-            edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+            if args.bond_feature_focused is False:
+                edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+            # If focused, bond order of acids only and bond order 2 and 3 in single bit
+            #TODO: polarization (based on atomic electrnegativities) of acid only, weak conjugation removed.
+            elif args.bond_feature_conjugation is True and args.bond_feature_charge_conjugation is False:
+                #print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                #      flush=True)
+                #print(edge_features_B[:, 3:])
+                edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], axis=1)
+                #print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+            elif args.bond_feature_conjugation is False and args.bond_feature_charge_conjugation is True:
+                #print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                #      flush=True)
+                #print(edge_features_B[:, 3:])
+                edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], axis=1)
+                #print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+            elif args.bond_feature_conjugation is True and args.bond_feature_charge_conjugation is True:
+                #print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                #      flush=True)
+                #print(edge_features_B[:, 3:])
+                edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], 1)
+                #print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+            elif args.bond_feature_conjugation is False and args.bond_feature_charge_conjugation is False:
+                #print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                #      flush=True)
+                #print(edge_features_B[:, 3:])
+                edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+                #print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+            #time.sleep(20)
         else:
             print('|----------------------------------------------------------------------------------------------------------------------------|')
-            print('| ERROR: acid_or_base can only be acid base or both                                                                          |')
+            print('| ERROR: acid_or_base can only be set to acid, base or both                                                                  |')
             print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
         # Get labels info
@@ -182,13 +194,12 @@ def generate_datasets(filename, train_or_test, args):
             if args.atom_feature_ring_size is True:
                 base_feature += 4
 
-            # Feature 8: Number of hydrogen (#25-28)
             # if args.acid_or_base == "acid" or args.acid_or_base == "both":
             if args.atom_feature_number_of_Hs is True:
                 base_Hs = base_feature
                 base_feature += 4
 
-                # Feature 9: Atom formal charge (#29-31)
+            # Feature 9: Atom formal charge (#29-31)
             if args.atom_feature_formal_charge is True:
                 base_charge = base_feature
                 base_feature += 3
@@ -201,18 +212,21 @@ def generate_datasets(filename, train_or_test, args):
                 node_features = node_features_B
             elif args.acid_or_base == "both":
                 node_features = node_features_A
+                #print('prepare_set 204: \n')
+                #print(node_features_B)
+                #print(node_features_B[:, base_hybrid:base_hybrid+2])
 
                 if base_hybrid > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+2]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+3]], 1)
 
                 if base_arom > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_arom:base_arom]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_arom:base_arom+1]], 1)
 
                 if base_Hs > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_Hs:base_Hs+3]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_Hs:base_Hs+4]], 1)
 
                 if base_charge > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_charge:base_charge+2]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_charge:base_charge+3]], 1)
 
             # Below we define the local atoms around the center (common to acids and bases)
             local_atoms = np.where(distance_matrix[center] <= args.mask_size)[0]
@@ -251,7 +265,17 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
     atom_idx = 0
     atom_k_idx = 0
     smiles = small_mol['Smiles']
-    source = small_mol['Source']
+    if 'ID' in small_mol.keys():
+        name = small_mol['ID']
+    elif 'Name' in small_mol.keys():
+        name = small_mol['Name']
+    else:
+        name = 'mol'
+
+    if 'Source' in small_mol.keys():
+        source = small_mol['Source']
+    else:
+        source = 'n/a'
     proposed_center = -1
     ionization_states0 = []
     invalid = 0
@@ -282,6 +306,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
     smiles = smiles.replace('([H])', '')
     smiles = smiles.replace('([H])', '')
     smiles = smiles.replace('[C-]', 'C')
+    smiles = smiles.replace('[n]', 'n')
 
     # Checking the validity of the SMILES string
     mol_test = Chem.MolFromSmiles(smiles, sanitize=True)
@@ -297,16 +322,17 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                      Chem.SanitizeFlags.SANITIZE_SETHYBRIDIZATION | Chem.SanitizeFlags.SANITIZE_SYMMRINGS,
                      catchErrors=True)
 
-    ionizable_nitrogens, positive_nitrogens, acidic_nitrogens, charged_oxygens, acidic_oxygens, acidic_carbons = \
-        find_centers(mol_original, i, smiles, initial)
+    ionizable_nitrogens, positive_nitrogens, acidic_nitrogens, negative_oxygens, acidic_oxygens, acidic_carbons,\
+        nitro_nitrogens = find_centers(mol_original, i, smiles, name, initial, args)
 
+    #print('prepare_set 306: ', ionizable_nitrogens, positive_nitrogens, acidic_nitrogens)
     smiles_i = smiles
     negative_nitrogens = []
     pyridinium = []
 
     if initial is True:
         smiles = ionizeN(smiles, mol_original, mol_original.GetNumAtoms(), acidic_nitrogens, acidic_oxygens,
-                         acidic_carbons, ionizable_nitrogens, negative_nitrogens, pyridinium)
+                         acidic_carbons, ionizable_nitrogens, negative_nitrogens, negative_oxygens, nitro_nitrogens, pyridinium, args)
 
     if initial is True:
         # Removing the hydrogen bonds (eg: [OH:15] should become O
@@ -327,7 +353,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
         while j < len(smiles):
             is_smiles, smiles, j, atom_idx = parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens,
                                                           positive_nitrogens, acidic_nitrogens, negative_nitrogens,
-                                                          charged_oxygens, acidic_oxygens, acidic_carbons, pyridinium,
+                                                          negative_oxygens, acidic_oxygens, acidic_carbons, pyridinium, nitro_nitrogens,
                                                           False, True)
 
         # Adding hydrogens in the smiles string when needed and converting NH into N(-) when appropriate:
@@ -344,7 +370,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
 
         # Ionizing the activated NH's
         smiles = ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens, acidic_carbons,
-                         ionizable_nitrogens, negative_nitrogens, pyridinium)
+                         ionizable_nitrogens, negative_nitrogens, negative_oxygens, nitro_nitrogens, pyridinium, args)
 
         if smiles != smiles_i and args.verbose > 0:
             print("|        | Revised: %-104s |" % smiles)
@@ -354,9 +380,10 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
             ionization_states0.append(copy.deepcopy(positive_nitrogens))
             ionization_states0.append(copy.deepcopy(acidic_nitrogens))
             ionization_states0.append(copy.deepcopy(negative_nitrogens))
-            ionization_states0.append(copy.deepcopy(charged_oxygens))
+            ionization_states0.append(copy.deepcopy(negative_oxygens))
             ionization_states0.append(copy.deepcopy(acidic_oxygens))
             ionization_states0.append(copy.deepcopy(acidic_carbons))
+            ionization_states0.append(copy.deepcopy(nitro_nitrogens))
 
     else:
         ionization_states0 = copy.deepcopy(ionization_states)
@@ -366,9 +393,10 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
             positive_nitrogens = ionization_states0[1]
             acidic_nitrogens = ionization_states0[2]
             negative_nitrogens = ionization_states0[3]
-            charged_oxygens = ionization_states0[4]
+            negative_oxygens = ionization_states0[4]
             acidic_oxygens = ionization_states0[5]
             acidic_carbons = ionization_states0[6]
+            nitro_nitrogens = ionization_states0[7]
 
     j = -1
     atom_idx = 0
@@ -380,9 +408,10 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
         positive_nitrogens = copy.deepcopy(ionization_states0[1])
         acidic_nitrogens = copy.deepcopy(ionization_states0[2])
         negative_nitrogens = copy.deepcopy(ionization_states0[3])
-        charged_oxygens = copy.deepcopy(ionization_states0[4])
+        negative_oxygens = copy.deepcopy(ionization_states0[4])
         acidic_oxygens = copy.deepcopy(ionization_states0[5])
         acidic_carbons = copy.deepcopy(ionization_states0[6])
+        nitro_nitrogens = copy.deepcopy(ionization_states0[7])
 
         unchanged = False
         is_smiles = False
@@ -393,8 +422,8 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
 
         is_smiles, smiles_A, j, atom_idx = parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens,
                                                         positive_nitrogens, acidic_nitrogens,
-                                                        negative_nitrogens, charged_oxygens, acidic_oxygens,
-                                                        acidic_carbons, pyridinium, True, False)
+                                                        negative_nitrogens, negative_oxygens, acidic_oxygens,
+                                                        acidic_carbons, pyridinium, nitro_nitrogens, True, False)
         smiles_idx = j
 
         if is_smiles is True:
@@ -448,7 +477,32 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
             elif args.acid_or_base == "both":
                 edge_features_A = get_edge_features(mol_obj_A, args)
                 edge_features_B = get_edge_features(mol_obj_B, args)
-                edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+                if args.bond_feature_focused is False:
+                    edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+                elif args.bond_feature_conjugation is True and args.bond_feature_charge_conjugation is False:
+                    # print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                    #      flush=True)
+                    # print(edge_features_B[:, 3:])
+                    edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], axis=1)
+                    # print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+                elif args.bond_feature_conjugation is False and args.bond_feature_charge_conjugation is True:
+                    # print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                    #      flush=True)
+                    # print(edge_features_B[:, 3:])
+                    edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], axis=1)
+                    # print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+                elif args.bond_feature_conjugation is True and args.bond_feature_charge_conjugation is True:
+                    # print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                    #      flush=True)
+                    # print(edge_features_B[:, 3:])
+                    edge_features = torch.cat([edge_features_A, edge_features_B[:, 4:]], 1)
+                    # print('\nedge_features\n', edge_features.shape, '\n', edge_features)
+                elif args.bond_feature_conjugation is False and args.bond_feature_charge_conjugation is False:
+                    # print('edge_features_A\n', edge_features_A.shape, '\n', edge_features_A, '\nedge_features_B\n', edge_features_B.shape, '\n', edge_features_B,
+                    #      flush=True)
+                    # print(edge_features_B[:, 3:])
+                    edge_features = torch.cat([edge_features_A, edge_features_B], axis=1)
+                    # print('\nedge_features\n', edge_features.shape, '\n', edge_features)
             else:
                 print('|----------------------------------------------------------------------------------------------------------------------------|')
                 print('| ERROR: acid_or_base can only be acid base or both                                                                          |')
@@ -527,18 +581,18 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
                 node_features = node_features_B
             elif args.acid_or_base == "both":
                 node_features = node_features_A
-
+                #TODO update below (when testing is complete: +2 should be +3,...
                 if base_hybrid > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+2]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_hybrid:base_hybrid+3]], 1)
 
                 if base_arom > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_arom:base_arom]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_arom:base_arom+1]], 1)
 
                 if base_Hs > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_Hs:base_Hs+3]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_Hs:base_Hs+4]], 1)
 
                 if base_charge > -1:
-                    node_features = torch.cat([node_features, node_features_B[:, base_charge:base_charge+2]], 1)
+                    node_features = torch.cat([node_features, node_features_B[:, base_charge:base_charge+3]], 1)
 
             # Below we define the local atoms around the center (common to acids and bases)
             local_atoms = np.where(distance_matrix[center] <= args.mask_size)[0]
@@ -548,13 +602,13 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
             if args.verbose > 2:
                 print("\n| Saving | smiles", smiles_A)
                 print("|        | N|, N+, NH, N-, O-, OH, CH: %s %s %s %s %s %s %s"
-                      % (ionizable_nitrogens, positive_nitrogens, acidic_nitrogens, negative_nitrogens, charged_oxygens,
+                      % (ionizable_nitrogens, positive_nitrogens, acidic_nitrogens, negative_nitrogens, negative_oxygens,
                          acidic_oxygens, acidic_carbons))
 
             ionization_states = [copy.deepcopy(ionizable_nitrogens), copy.deepcopy(positive_nitrogens),
                                  copy.deepcopy(acidic_nitrogens), copy.deepcopy(negative_nitrogens),
-                                 copy.deepcopy(charged_oxygens), copy.deepcopy(acidic_oxygens),
-                                 copy.deepcopy(acidic_carbons)]
+                                 copy.deepcopy(negative_oxygens), copy.deepcopy(acidic_oxygens),
+                                 copy.deepcopy(acidic_carbons), copy.deepcopy(nitro_nitrogens)]
 
             data = Data(x=node_features,
                         edge_index=edge_index,

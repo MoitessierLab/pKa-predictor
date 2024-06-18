@@ -101,15 +101,18 @@ def find_protonation_state(predicts, labels, smiles, mol_num, args):
         temp_smiles.clear()
         temp_mol_num.clear()
         temp_pH = 100
-        found = 0
+        found = -1
 
+        #print('Utils 106: ', len(predicts))
+        #print('Utils 107: ', count, mol_num)
         for i in range(len(predicts)):
-            if mol_num[i] == count+1:
+            if args.mode == "pH" or mol_num[i] == count + 1:
                 temp_predicts.append(predicts[i])
                 temp_labels.append(predicts[i])
                 temp_smiles.append(smiles[i])
                 temp_mol_num.append(mol_num[i])
 
+        #print('Utils 114: ', len(temp_predicts), temp_predicts, args.pH)
         for i in range(len(temp_predicts)):
             # the first pKa value is the one selected to start
             if temp_pH > 99:
@@ -124,6 +127,7 @@ def find_protonation_state(predicts, labels, smiles, mol_num, args):
                 found = i
                 temp_pH = temp_predicts[i]
 
+        #if found > -10:
         pH_predicts.append(temp_predicts[found])
         pH_labels.append(temp_labels[found])
         pH_smiles.append(temp_smiles[found])
