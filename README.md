@@ -24,5 +24,5 @@ Running any of the mode will first output all the keyword and their default valu
 To run the provided model on the csv file called train_set_0.65.csv:
 1. Create a folder named pickled_data
 2. Run the following command:
-python3 main.py --mode test ---n_graph_layers 4 --mask_size 4 --data_path Datasets/ --input train_set_0.65.csv --verbose 2 --output testing_model --n_random_smiles 0 --model_name model_4-4.pth
+python3 main.py --mode test --n_graph_layers 4 --mask_size 4 --data_path Datasets/ --input train_set_0.65.csv --verbose 2 --output testing_model --n_random_smiles 0 --model_name model_4-4.pth
 
