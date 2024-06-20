@@ -42,22 +42,9 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer,
                                                            gamma=hypers["scheduler_gamma"])
 
-        first_epoch = 1
-        #if args.restart != 'none':
-        #    print('| Loading previously trained model...                                                                                        |')
-        #    checkpoint = torch.load(args.model_dir + args.restart)
-        #    trained_model.load_state_dict(checkpoint['model_state_dict'])
-        #    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        #    optimizer_to(optimizer, device)
-        #    first_epoch = checkpoint['epoch'] + 1
-
         trained_model.to(device)
         train_loss_all = []
         test_loss_all = []
-
-        #if args.restart != 'none':
-        #    train_loss_all = checkpoint['train_loss']
-        #    test_loss_all = checkpoint['test_loss']
 
         print('| Now training the model...                                                                                                  |')
         print('|----------------------------------------------------------------------------------------------------------------------------|')
@@ -77,7 +64,7 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
         best_val_loss = 250
         same_val_loss = 0
 
-        for epoch in range(first_epoch, args.epoch + 1):
+        for epoch in range(1, args.epoch + 1):
             # Training
             trained_model.train()
             train_loss = train(epoch, trained_model, train_loader, optimizer, loss_fn, args)
@@ -118,40 +105,11 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
                 'test_loss': test_loss_all,
             }, args.save_dir + args.output + '_last.pth')
 
-            # for name, param in best_trained_model.named_parameters():
-            #    if param.requires_grad:
-            #        print(name, param.data)
         print('|----------------------------------------------------------------------------------------------------------------------------|')
         print('| best val loss:          %-98s |' % best_val_loss)
         print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
         return best_val_loss
-
-    #hypers_0 = {
-    #    'batch_size': hp.choice('batch_size', [64]),
-    #    'learning_rate': hp.choice('learning_rate', [0.001, 0.0001, 0.00001]),
-    #    'weight_decay': hp.choice('weight_decay', [0.0001, 0.00001, 0.000001]),
-    #    'scheduler_gamma': hp.choice('scheduler_gamma', [0.9985, 0.9975, 0.995, 0.99, 0.98]),
-    #    'model_embedding_size': hp.choice('model_embedding_size', [128, 512]),
-    #    'model_gnn_layers': args_0.n_graph_layers,
-    #    'model_fc_layers': hp.choice('model_fc_layers', [2, 3, 4]),
-    #    'model_dropout_rate': hp.choice('model_dropout_rate', [0.1, 0.2, 0.3, 0.4, 0.5]),
-    #    'model_dense_neurons': hp.choice('model_dense_neurons', [128, 256, 384, 512]),
-    #    'model_attention_heads': hp.choice('model_attention_heads', [2, 3, 4]),
-    #}
-
-    #hypers_0 = {
-    #    'batch_size': hp.choice('batch_size', [64]),
-    #    'learning_rate': hp.choice('learning_rate', [0.002, 0.001, 0.0005, 0.0002]),
-    #    'weight_decay': hp.choice('weight_decay', [0.000002, 0.000001, 0.0000005]),
-    #    'scheduler_gamma': hp.choice('scheduler_gamma', [0.99, 0.985, 0.98, 0.97, 0.96]),
-    #    'model_embedding_size': hp.choice('model_embedding_size', [64, 96, 128, 160, 192]),
-    #    'model_gnn_layers': args_0.n_graph_layers,
-    #    'model_fc_layers': hp.choice('model_fc_layers', [2, 3, 4]),
-    #    'model_dropout_rate': hp.choice('model_dropout_rate', [0.1, 0.15, 0.20, 0.25]),
-    #    'model_dense_neurons': hp.choice('model_dense_neurons', [256, 320, 384, 448]),
-    #    'model_attention_heads': hp.choice('model_attention_heads', [3, 4]),
-    #}
 
     hypers_0 = {
         'batch_size': hp.choice('batch_size', [args_0.batch_size]),  # batch size defined when creating the data
@@ -166,7 +124,6 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
         'model_attention_heads': hp.choice('model_attention_heads', [3, 4]),
     }
 
-    # best = 0
     best_score = 1000
     best_params = None
 
@@ -177,21 +134,6 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
         if acc < best_score:
             best_score = acc
             best_params = params
-            #print('|----------------------------------------------------------------------------------------------------------------------------|')
-            #print('| New best parameters:    %98.3f |' % best_score)
-        #else:
-        #    print('| Results from parameters:    %98.3f |' % best_score)
-        # print('| batch_size:             %98.0f |' % best_params['batch_size'])
-        #print('| learning_rate:          %98.6f |' % best_params['learning_rate'])
-        #print('| weight_decay:           %98.6f |' % best_params['weight_decay'])
-        #print('| scheduler_gamma:        %98.4f |' % best_params['scheduler_gamma'])
-        #print('| model_embedding_size:   %98.0f |' % best_params['model_embedding_size'])
-        #print('| model_gnn_layers:       %98.0f |' % best_params['model_gnn_layers'])
-        #print('| model_fc_layers:        %98.0f |' % best_params['model_fc_layers'])
-        #print('| model_dropout_rate:     %98.2f |' % best_params['model_dropout_rate'])
-        #print('| model_dense_neurons:    %98.0f |' % best_params['model_dense_neurons'])
-        #print('| model_attention_heads:  %98.0f |' % best_params['model_attention_heads'])
-        #print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
         return {'loss': -acc, 'status': STATUS_OK}
 
     trials = Trials()
@@ -206,16 +148,11 @@ def hyperoptimize(train_dataset_0, train_data_0, test_data_0, args_0):
 
     print('|----------------------------------------------------------------------------------------------------------------------------|')
     print('| Final best parameters:                                                                                                     |')
-    #print('| batch_size:             %98.0f |' % best_params['batch_size'])
     print('| learning_rate:          %98.6f |' % best_params['learning_rate'])
     print('| weight_decay:           %98.6f |' % best_params['weight_decay'])
     print('| scheduler_gamma:        %98.4f |' % best_params['scheduler_gamma'])
     print('| model_embedding_size:   %98.0f |' % best_params['model_embedding_size'])
-    #print('| model_gnn_layers:       %98.0f |' % best_params['model_gnn_layers'])
-    #print('| model_fc_layers:        %98.0f |' % best_params['model_fc_layers'])
     print('| model_dropout_rate:     %98.2f |' % best_params['model_dropout_rate'])
     print('| model_dense_neurons:    %98.0f |' % best_params['model_dense_neurons'])
     print('| model_attention_heads:  %98.0f |' % best_params['model_attention_heads'])
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
-
-

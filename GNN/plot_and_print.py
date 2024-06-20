@@ -79,8 +79,8 @@ def plot_figure3(train_labels, train_predicts, test_labels, test_predicts, args)
     plt.savefig(args.output + '_MAE.pdf')
 
 
-def print_results(train_predicts, train_labels, train_smiles, train_mol_num, train_source, train_error, test_predicts,
-                  test_labels, test_smiles, test_mol_num, test_source, test_error, args):
+def print_results(train_predicts, train_labels, train_smiles, train_mol_num, train_error, test_predicts,
+                  test_labels, test_smiles, test_mol_num, test_error, args):
     train_difference = []
     for i in range(len(train_predicts)):
         train_difference.append(train_predicts[i]-train_labels[i])
@@ -90,8 +90,8 @@ def print_results(train_predicts, train_labels, train_smiles, train_mol_num, tra
           % (len(index), len(train_smiles)))
     print('|--------------------------------------------------                                                                          |')
     for i in index:
-        print('| %5.0f | %5.2f | %5.2f | %20s | %4.2f | %-68s |' % (train_mol_num[i], train_labels[i],
-                                                                    train_predicts[i], train_source[i], train_error[i],
+        print('| %5.0f | %5.2f | %5.2f | %4.2f | %-91s |' % (train_mol_num[i], train_labels[i],
+                                                                    train_predicts[i], train_error[i],
                                                                     train_smiles[i]))
     
     with open(args.output + 'train_results.csv', 'w') as f:
@@ -99,9 +99,8 @@ def print_results(train_predicts, train_labels, train_smiles, train_mol_num, tra
         f.write('| mol # | obs.  | pred. | SMILES                                                                                             |\n')
         f.write('|----------------------------------------------------------------------------------------------------------------------------|\n')
         for i in range(len(train_labels)):
-            f.write('| %5.0f | %5.2f | %5.2f | %20s | %4.2f | %-68s |\n' % (train_mol_num[i], train_labels[i],
-                                                                            train_predicts[i], train_source[i],
-                                                                            train_error[i], train_smiles[i]))
+            f.write('| %5.0f | %5.2f | %5.2f | %4.2f | %-91s |\n' % (train_mol_num[i], train_labels[i],
+                                                                            train_predicts[i], train_error[i], train_smiles[i]))
         f.write('|----------------------------------------------------------------------------------------------------------------------------|\n')
 
     test_difference = []
@@ -114,18 +113,16 @@ def print_results(train_predicts, train_labels, train_smiles, train_mol_num, tra
     print('|--------------------------------------------------                                                                          |')
 
     for i in index:
-        print('| %5.0f | %5.2f | %5.2f | %20s | %4.2f | %-68s |' % (test_mol_num[i], test_labels[i],
-                                                                      test_predicts[i], test_source[i],
-                                                                      test_error[i], test_smiles[i]))
+        print('| %5.0f | %5.2f | %5.2f | %4.2f | %-71s |' % (test_mol_num[i], test_labels[i],
+                                                             test_predicts[i], test_error[i], test_smiles[i]))
     
     with open(args.output + 'test_results.csv', 'w') as f:
         f.write('|----------------------------------------------------------------------------------------------------------------------------|\n')
         f.write('| mol # | obs.  | pred. | SMILES                                                                                             |\n')
         f.write('|----------------------------------------------------------------------------------------------------------------------------|\n')
         for i in range(len(test_predicts)):
-            f.write('| %5.0f | %5.2f | %5.2f | %20s | %4.2f | %-68s |\n' % (test_mol_num[i], test_labels[i],
-                                                                            test_predicts[i], test_source[i],
-                                                                            test_error[i], test_smiles[i]))
+            f.write('| %5.0f | %5.2f | %5.2f | %4.2f | %-71s |\n' % (test_mol_num[i], test_labels[i],
+                                                                     test_predicts[i], test_error[i], test_smiles[i]))
         f.write('|----------------------------------------------------------------------------------------------------------------------------|\n')
 
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
@@ -203,10 +200,8 @@ def print_model_txt(hypers, args):
         trained_model.load_state_dict(checkpoint['model_state_dict'])
         with open(args.output + args.model_txt_file, 'w') as f:
             for name, param in trained_model.named_parameters():
-                #if param.requires_grad:
                 f.write(name)
                 f.write('\n')
-                # print('param.data shape: ', param.data.shape)
                 tensor_shape = list(map(int, param.data.shape))
                 tensor_list = list(tensor_shape)
                 tensor_dim = len(list(tensor_shape))
@@ -225,10 +220,8 @@ def print_model_txt(hypers, args):
 
             # below if for running_mean and running_var
             for name, param in trained_model.named_buffers():
-                #if param.requires_grad:
                 f.write(name)
                 f.write('\n')
-                # print('param.data shape: ', param.data.shape)
                 tensor_shape = list(map(int, param.data.shape))
                 tensor_list = list(tensor_shape)
                 tensor_dim = len(list(tensor_shape))

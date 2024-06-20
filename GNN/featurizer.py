@@ -169,12 +169,6 @@ def get_edge_features(mol, args):
         edge_features2 = []
         # Feature 1: Bond type (#1-4)
         if args.bond_feature_bond_order is True:
-            #if args.bond_feature_focused is True:
-            #    edge_features1 += one_hot(bond.GetBondTypeAsDouble(),
-            #                              [1, 1.5, (2 or 3)])
-            #    edge_features2 += one_hot(bond.GetBondTypeAsDouble(),
-            #                              [1, 1.5, (2 or 3)])
-            #else:
             edge_features1 += one_hot(bond.GetBondTypeAsDouble(),
                                       [1, 1.5, 2, 3])
             edge_features2 += one_hot(bond.GetBondTypeAsDouble(),
@@ -253,7 +247,6 @@ def get_edge_features(mol, args):
                     for bond2 in mol.GetBonds():
                         if bond2.GetBondTypeAsDouble() != 1:
                             continue
-                        #print(bond2.GetBeginAtomIdx(), bond2.GetEndAtomIdx(), mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol())
                         if bond2.GetBeginAtomIdx() == central_atom and (mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "O" or
                                                                         mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol() == "N"):
                             strongConjugation = 1
@@ -266,9 +259,6 @@ def get_edge_features(mol, args):
                     for bond2 in mol.GetBonds():
                         if bond2.GetBondTypeAsDouble() != 1:
                             continue
-                        #print(central_atom, bond2.GetBeginAtomIdx(), bond2.GetEndAtomIdx(), mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol(),
-                        #      mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetSymbol(), \
-                        #      mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetFormalCharge(), mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge())
                         if bond2.GetBeginAtomIdx() == central_atom and mol.GetAtomWithIdx(bond2.GetEndAtomIdx()).GetFormalCharge() == -1:
                             weakConjugation = 0
                             strongConjugation = 1
@@ -286,17 +276,6 @@ def get_edge_features(mol, args):
                                      mol.GetAtomWithIdx(bond2.GetBeginAtomIdx()).GetSymbol() == "N"):
                             weakConjugation = 1
 
-            # if bond.GetIsConjugated():
-            #    if bond.GetBondTypeAsDouble() == 1:
-            #        if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
-            #           (mol.GetAtomWithIdx(atom2).GetFormalCharge() == -1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
-            #            strongConjugation = 1
-            #
-            #    if bond.GetBondTypeAsDouble() != 1:
-            #        if (mol.GetAtomWithIdx(atom1).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom2).GetFormalCharge() == 0) or \
-            #           (mol.GetAtomWithIdx(atom2).GetFormalCharge() == 1 and mol.GetAtomWithIdx(atom1).GetFormalCharge() == 0):
-            #            strongConjugation = 1
-
             if args.bond_feature_conjugation is True:
                 if args.bond_feature_charge_conjugation is False and strongConjugation == 1:
                     weakConjugation = 1
@@ -307,8 +286,6 @@ def get_edge_features(mol, args):
             if args.bond_feature_charge_conjugation is True:
                 edge_features1 += [strongConjugation]
                 edge_features2 += [strongConjugation]
-            #print(atom1, atom2, bond.GetIsConjugated(), mol.GetAtomWithIdx(atom1).GetFormalCharge(), mol.GetAtomWithIdx(atom2).GetFormalCharge(),
-            #      weakConjugation, strongConjugation)
 
         # Append edge features to matrix (twice, per direction, 7 features)
         edges_features += [edge_features1, edge_features2]

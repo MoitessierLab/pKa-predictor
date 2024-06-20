@@ -10,7 +10,6 @@ class GNN(torch.nn.Module):
     def __init__(self, feature_size, edge_dim, model_params):
         super(GNN, self).__init__()
         embedding_size = model_params["model_embedding_size"]
-        #node_embedding_size = model_params["model_node_embedding_size"]
         self.gnn_layers = model_params["model_gnn_layers"]
         self.dense_layers = model_params["model_fc_layers"]
         self.p = model_params["model_dropout_rate"]
@@ -52,7 +51,6 @@ class GNN(torch.nn.Module):
         # And acid and base embeddings will be concatenated
         self.linear1 = Linear(embedding_size + 2, dense_neurons)
 
-        #print('fc: ', self.dense_layers)
         for i in range(self.dense_layers-1):
             self.fc_layers.append(Linear(dense_neurons, int(dense_neurons/4)))
             dense_neurons = int(dense_neurons/4)

@@ -101,10 +101,6 @@ def training(train_dataset, best_hypers, train_loader, test_loader, args):
             'test_loss': test_loss_all,
             }, args.save_dir + args.output + '_last.pth')
 
-        # for name, param in best_trained_model.named_parameters():
-        #    if param.requires_grad:
-        #        print(name, param.data)
-
     print('|----------------------------------------------------------------------------------------------------------------------------|')
     
     plot_figure1(train_loss_all, test_loss_all, args)
@@ -126,7 +122,6 @@ def final_test(loader, model, loss_fn, args):
     all_smiles_base = []
     all_mol_num = []
     all_neutral = []
-    all_source = []
     all_error = []
     all_ionization_states = []
     model.p = 0
@@ -160,7 +155,6 @@ def final_test(loader, model, loss_fn, args):
         all_proposed_centers.append(batch.proposed_center.cpu().detach().numpy())
         all_mol_num.append(batch.mol_number.cpu().detach().numpy())
         all_error.append(batch.error.cpu().detach().numpy())
-        all_source.append(batch.source)
         all_ionization_states.append(batch.ionization_state)
 
     if len(all_preds) > 0 and all_preds[0].size > 1:
@@ -173,7 +167,6 @@ def final_test(loader, model, loss_fn, args):
         all_neutral = np.concatenate(all_neutral).ravel()
         all_mol_num = np.concatenate(all_mol_num).ravel()
         all_error = np.concatenate(all_error).ravel()
-        all_source = np.concatenate(all_source).ravel()
     elif len(all_preds) > 0:
         all_preds = np.array(all_preds[0]).ravel()
         all_labels = np.array(all_labels[0]).ravel()
@@ -184,7 +177,6 @@ def final_test(loader, model, loss_fn, args):
         all_neutral = np.array(all_neutral[0]).ravel()
         all_mol_num = np.array(all_mol_num[0]).ravel()
         all_error = np.array(all_error[0]).ravel()
-        all_source = np.array(all_source[0]).ravel()
 
     if step == 0:
         step = 1
@@ -193,7 +185,7 @@ def final_test(loader, model, loss_fn, args):
         calculate_metrics(all_preds, all_labels, all_mol_num, args)
 
     return running_loss / step, all_preds, all_labels, all_smiles, all_smiles_base, all_centers, all_proposed_centers,\
-        all_mol_num, all_neutral, all_source, all_error, all_ionization_states
+        all_mol_num, all_neutral, all_error, all_ionization_states
 
 
 def testing(best_trained_model, train_loader, test_loader, args):
@@ -203,7 +195,7 @@ def testing(best_trained_model, train_loader, test_loader, args):
     best_trained_model.eval()
 
     train_loss, train_predicts, train_labels, train_smiles, train_smiles_base, train_centers, train_proposed_centers, \
-        train_mol_num, train_neutral, train_source, train_error, train_ionization_states = \
+        train_mol_num, train_neutral, train_error, train_ionization_states = \
         final_test(model=best_trained_model, loader=train_loader, loss_fn=loss_fn, args=args)
 
     print('| train loss %-106.3f      |' % train_loss)
@@ -213,7 +205,7 @@ def testing(best_trained_model, train_loader, test_loader, args):
     best_trained_model.eval()
 
     test_loss, test_predicts, test_labels, test_smiles, test_smiles_base, test_centers, test_proposed_centers, \
-        test_mol_num, test_neutral, test_source, test_error, test_ionization_states = \
+        test_mol_num, test_neutral, test_error, test_ionization_states = \
         final_test(model=best_trained_model, loader=test_loader, loss_fn=loss_fn, args=args)
 
     print('| test loss %-106.3f       |' % test_loss)
@@ -222,10 +214,10 @@ def testing(best_trained_model, train_loader, test_loader, args):
     plot_figure2(train_labels, train_predicts, test_labels, test_predicts, args)
 
     # average over the random_smiles
-    train_predicts, train_labels, train_smiles, train_mol_num, train_source, train_error, = \
-        average(train_predicts, train_labels, train_smiles, train_mol_num, train_source, train_error, args)
-    test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error = \
-        average(test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error, args)
+    train_predicts, train_labels, train_smiles, train_mol_num, train_error, = \
+        average(train_predicts, train_labels, train_smiles, train_mol_num, train_error, args)
+    test_predicts, test_labels, test_smiles, test_mol_num, test_error = \
+        average(test_predicts, test_labels, test_smiles, test_mol_num, test_error, args)
 
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
     print('| Training Set averaged over random smiles %-76s      |' % whiteSpace)
@@ -235,8 +227,8 @@ def testing(best_trained_model, train_loader, test_loader, args):
     calculate_metrics(test_predicts, test_labels, test_mol_num, args)
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
-    print_results(train_predicts, train_labels, train_smiles, train_mol_num, train_source, train_error,
-                  test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error, args)
+    print_results(train_predicts, train_labels, train_smiles, train_mol_num, train_error,
+                  test_predicts, test_labels, test_smiles, test_mol_num, test_error, args)
 
     plot_figure3(train_labels, train_predicts, test_labels, test_predicts, args)
 
@@ -254,7 +246,6 @@ def inferring(args):
         'learning_rate': args.lr,
         'weight_decay': args.weight_decay,
         'scheduler_gamma': args.scheduler_gamma,
-        #'model_atom_embedding_size': args.atom_embedding_size,
         'model_embedding_size': args.embedding_size,
         'model_gnn_layers': args.n_graph_layers,
         'model_fc_layers': args.n_FC_layers,
@@ -268,13 +259,11 @@ def inferring(args):
 
     print('| Reading the files, preparing the features and computing pKa                                                                |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
-
     if args.mode == 'test':
         print('| mol #  | SMILES                                                                            | center        |      pKa      |')
         print('|        |                                                                                   |  obs. | pred. |  obs. | pred. |')
     else:
         print('| mol #  | SMILES                                                                                   | center | predicted pKa |')
-
     print('|----------------------------------------------------------------------------------------------------------------------------|')
 
     library_infer_predicts = []
@@ -299,7 +288,7 @@ def inferring(args):
         if args.verbose > 1:
             print_inference(infer_predicts, infer_labels, infer_smiles, infer_mol_num, infer_centers,
                             initial_proposed_center, args)
-        #print('Train pka pred 300')
+
         all_infer_predicts = []
         all_infer_labels = []
         all_infer_smiles = []
@@ -476,7 +465,7 @@ def infer(i, small_mol, initial, ionization_states, infer_path, model_params, de
                               num_workers=0, shuffle=False)
 
     infer_loss, infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_centers, infer_proposed_centers,\
-        infer_mol_num, infer_neutral, infer_source, infer_error, infer_ionization_states = \
+        infer_mol_num, infer_neutral, infer_error, infer_ionization_states = \
         final_test(model=model_infer, loader=infer_loader, loss_fn=loss_fn, args=args)
 
     return infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
@@ -496,7 +485,6 @@ def testing_with_IC(args):
         'learning_rate': args.lr,
         'weight_decay': args.weight_decay,
         'scheduler_gamma': args.scheduler_gamma,
-        #'model_atom_embedding_size': args.atom_embedding_size,
         'model_embedding_size': args.embedding_size,
         'model_gnn_layers': args.n_graph_layers,
         'model_fc_layers': args.n_FC_layers,
@@ -514,7 +502,6 @@ def testing_with_IC(args):
     print('| Reading the files, preparing the features and computing pKa                                                                |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
 
-
     if args.test_data != "none":
         test_data = load_data(args.test_pickled)
     else:
@@ -529,13 +516,12 @@ def testing_with_IC(args):
     print('| mol #  | SMILES                                                                                    |          pKa          | ')
     print('|        |                                                                                           |  obs. | pred. | error |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
-    #testing(model_test, test_loader, test_loader, args)
     test_loss, test_predicts, test_labels, test_smiles, test_smiles_base, test_centers, test_proposed_centers, \
-        test_mol_num, test_neutral, test_source, test_error, test_ionization_states = \
+        test_mol_num, test_neutral, test_error, test_ionization_states = \
         final_test(model=model_test, loader=test_loader, loss_fn=loss_fn, args=args)
 
-    test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error = \
-        average(test_predicts, test_labels, test_smiles, test_mol_num, test_source, test_error, args)
+    test_predicts, test_labels, test_smiles, test_mol_num, test_error = \
+        average(test_predicts, test_labels, test_smiles, test_mol_num, test_error, args)
 
     for i in range(len(test_predicts)):
         print('| %6.0f | %-89s | %5.2f | %5.2f | %5.2f |' % (test_mol_num[i], test_smiles[i], test_labels[i], test_predicts[i],
@@ -545,7 +531,6 @@ def testing_with_IC(args):
     number_of_graphs = args.n_random_smiles
     if number_of_graphs == 0:
         number_of_graphs = 1
-
 
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
     print('| Testing Set averaged over original and %3s random smiles  %-60s     |' % (str(int(number_of_graphs-1)), ' '))

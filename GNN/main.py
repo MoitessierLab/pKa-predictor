@@ -95,7 +95,6 @@ if __name__ == '__main__':
             'learning_rate': args.lr,
             'weight_decay': args.weight_decay,
             'scheduler_gamma': args.scheduler_gamma,
-            #'model_node_embedding_size': args.node_embedding_size,
             'model_embedding_size': args.embedding_size,
             'model_gnn_layers': args.n_graph_layers,
             'model_fc_layers': args.n_FC_layers,
@@ -115,10 +114,6 @@ if __name__ == '__main__':
         best_trained_model = training(train_dataset, best_hypers, train_loader, test_loader, args)
         
         torch.save(best_trained_model.state_dict(), args.save_dir + args.output + '.pth')
-
-        # for name, param in best_trained_model.named_parameters():
-        #    if param.requires_grad:
-        #        print(name, param.data)
 
         testing(best_trained_model, train_loader, test_loader, args)
 
@@ -146,14 +141,6 @@ if __name__ == '__main__':
         # training the model
         hyperoptimize(train_dataset, train_data, test_data, args)
 
-        # torch.save(best_trained_model.state_dict(), args.save_dir + args.output + '.pth')
-
-        # for name, param in best_trained_model.named_parameters():
-        #    if param.requires_grad:
-        #        print(name, param.data)
-
-        # testing(best_trained_model, train_loader, test_loader, args)
-
     elif args.mode == 'usage':
         usage()
 
@@ -163,7 +150,6 @@ if __name__ == '__main__':
             'learning_rate': args.lr,
             'weight_decay': args.weight_decay,
             'scheduler_gamma': args.scheduler_gamma,
-            #'node_model_embedding_size': args.node_embedding_size,
             'model_embedding_size': args.embedding_size,
             'model_gnn_layers': args.n_graph_layers,
             'model_fc_layers': args.n_FC_layers,
