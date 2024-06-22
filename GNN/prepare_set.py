@@ -275,6 +275,8 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
     smiles = smiles.replace('([H])', '')
     smiles = smiles.replace('[C-]', 'C')
     smiles = smiles.replace('[n]', 'n')
+    # Add explicit hydrogens for terminal nitrogens
+    smiles = smiles.replace('(N)', '([NH2])')
 
     # Checking the validity of the SMILES string
     mol_test = Chem.MolFromSmiles(smiles, sanitize=True)
