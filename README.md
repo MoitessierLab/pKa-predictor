@@ -26,6 +26,6 @@ Running any of the mode will first output all the keyword and their default valu
 
 To run the provided model on the csv file called train_set_0.65.csv:
 
-Run the following command (on Windows, for Linux or Mac, you may need it to adapt the format of the path):
+Run the following command on Windows (on Linux or Mac, you may need to adapt the format of the path):
 
 python main.py --mode test --n_graph_layers 4 --data_path ..\Datasets\ --input train_set_0.65.csv --model_dir ..\Model\  --output testing_model_train_set_0.65 --model_name model_4-4.pth --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl --carbons_included False > testing_model_train_set_0.65.out 
