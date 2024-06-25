@@ -4,6 +4,8 @@ Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
 nicolas.moitessier@mcgill.ca
 2023-12-07 - revised 2024-06-18
 
+![Graphical-abstract300.png](Graphical-abstract300.png)
+
 # Required libraries:
 torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
 
