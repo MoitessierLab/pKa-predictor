@@ -28,6 +28,8 @@ Install with pip:
 
 pip install torch torch_geometric pandas numpy rdkit seaborn hyperopt
 
+You can also recreate our virtual environment using environment.yml
+
 # 📁 Repository Structure
 
 Datasets/ : All cleaned, split, and raw datasets
