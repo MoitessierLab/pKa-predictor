@@ -34,7 +34,7 @@ print('|-----------------------------------------------------------------------|
 def load_parameters():
     # Parameters set here.
     pm = {'dir': '/home/moitessi/pKaPredictor2',
-          'data_dir': '/data/',
+          'data_dir': '/Clusters_Max_TC/',
           'fig_dir': 'Figures',
           'model_dir': 'Models',
           'num_test_set_clusters': 250,
@@ -64,9 +64,10 @@ allsmiles = pd.read_csv(dir_path + '/full_set.csv')
 print('| Smiles loaded                                                         |')
 
 Novartis_test_set = True
+Literature_test_set = True
 # Make Test Set
 ##############################################################################################################
-if Novartis_test_set is False:
+if Novartis_test_set is False and Literature_test_set is False:
     test_set = pd.DataFrame(columns=['Smiles', 'tanimoto_coefficient'])
     for i in tqdm(range(pm['num_test_set_clusters']), total=pm['num_test_set_clusters'],
                                                       desc="| Preparing Test Set                                                    |\n"):
@@ -96,15 +97,22 @@ if Novartis_test_set is False:
     # Get size for test set dataframe
     print('Size of test set:', len(test_set))
     test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set.csv', index=False)
-else:
-    test_set = pd.DataFrame(columns=['Name', 'pKa', 'Center', 'Index', 'Smiles', 'Source', 'Error'])
-    for index, row in allsmiles.iterrows():
-        if 'Novartis' in row['Source']:
-            test_set = pd.concat([test_set, pd.DataFrame([row], columns=row.index)])
+elif Novartis_test_set is True:
+    testsmiles = pd.read_csv(dir_path + '/test_set_Novartis.csv')
+    test_set = pd.DataFrame(columns=['Name', 'pKa', 'Center', 'Index', 'Smiles'])
+    for index, row in testsmiles.iterrows():
+        test_set = pd.concat([test_set, pd.DataFrame([row], columns=row.index)])
     # Get size for test set dataframe
-    print('Size of test set:', len(test_set))
-    test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set_Novartis.csv', index=False)
-
+    #print('Size of test set:', len(test_set))
+    #test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set_Novartis.csv', index=False)
+elif Literature_test_set is True:
+    testsmiles = pd.read_csv(dir_path + '/test_set_Literature.csv')
+    test_set = pd.DataFrame(columns=['Name', 'pKa', 'Center', 'Index', 'Smiles'])
+    for index, row in testsmiles.iterrows():
+        test_set = pd.concat([test_set, pd.DataFrame([row], columns=row.index)])
+    # Get size for test set dataframe
+    #print('Size of test set:', len(test_set))
+    #test_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'test_set_Novartis.csv', index=False)
 
 # Make Train Set
 ##############################################################################################################
@@ -138,14 +146,15 @@ for MAX_TANIMOTO in tanimoto:
     print('| Maximum Tanimoto coefficient: %5.3f, Size of the training set: %6.0f |' % (MAX_TANIMOTO, len(train_set)))
     # Put size of train_set into row 'train size and tanimoto column into tanimoto_df for plotting
     tanimoto_df.loc['train_set_size', MAX_TANIMOTO] = len(train_set)
-    if Novartis_test_set is False:
+    if Novartis_test_set is False and Literature_test_set is False:
         train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_' + str(MAX_TANIMOTO) + '.csv', index=False)
         tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df.csv', index=False)
-    else:
-        train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_fromNS_' + str(MAX_TANIMOTO) + '.csv', index=False)
+    elif Novartis_test_set is True:
+        train_set.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'train_set_fromNS_' + str(MAX_TANIMOTO) + '.csv', index=False)
         tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df_fromNS.csv', index=False)
-
-
+    elif Literature_test_set is True:
+        train_set.to_csv(pm['dir']+'/Clusters_Max_TC/' + 'train_set_fromLitt_' + str(MAX_TANIMOTO) + '.csv', index=False)
+        tanimoto_df.to_csv(pm['dir'] + '/Clusters_Max_TC/' + 'tanimoto_df_fromLitt.csv', index=False)
 
 # Plot using matplot lib train_set_size over tanimoto
 plt.plot(tanimoto_df.columns, tanimoto_df.loc['train_set_size'])

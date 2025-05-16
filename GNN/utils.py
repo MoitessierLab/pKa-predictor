@@ -84,7 +84,7 @@ def calculate_metrics(y_pred, y_true, mol_num, args):
     print("| R2:                   %-101.3f|" % r2)
 
 
-def find_protonation_state(predicts, labels, smiles, mol_num, args):
+def find_protonation_state(predicts, labels, smiles, ionized_smiles, mol_num, ionized_mol_num, initial, args):
     pH_predicts = []
     pH_labels = []
     pH_smiles = []
@@ -95,6 +95,12 @@ def find_protonation_state(predicts, labels, smiles, mol_num, args):
     temp_mol_num = []
 
     unique_mol_num = list(dict.fromkeys(mol_num))
+    if len(unique_mol_num) == 0:
+        pH_predicts.append(14.0)
+        pH_labels.append(0)
+        pH_smiles.append(ionized_smiles)
+        pH_mol_num.append(mol_num)
+        return pH_predicts, pH_labels, pH_smiles, pH_mol_num
     for count in range(len(unique_mol_num)):
         temp_predicts.clear()
         temp_labels.clear()
@@ -110,24 +116,38 @@ def find_protonation_state(predicts, labels, smiles, mol_num, args):
                 temp_smiles.append(smiles[i])
                 temp_mol_num.append(mol_num[i])
 
+        # If there is no state with a pKa higher than the requested pH, we use the fully ionized molecule
         for i in range(len(temp_predicts)):
             # the first pKa value is the one selected to start
-            if temp_pH > 99:
-                found = i
-                temp_pH = temp_predicts[i]
+            #if temp_pH > 99.5:
+            #    found = 99
+            #    temp_pH = 99
             # if the pKa is low but still higher (closer to user defined pH) that the one previously saved
-            elif temp_predicts[i] > temp_pH and temp_pH < args.pH:
-                found = i
-                temp_pH = temp_predicts[i]
+            # if temp_predicts[i] > temp_pH and temp_pH < args.pH:
+            # No longer need this condition because the minimum pka may not be the last protonation state, i.e not the one we want
+            # ex: O=C1N[C@@H](c2cccs2)C(=O)N1C[C@H]1CCSC1
+            #     found = i
+            #     temp_pH = temp_predicts[i]
             # if pKa values are higher than the user defined pH, we take the lowest
-            elif temp_predicts[i] < temp_pH and temp_predicts[i] >= args.pH:
+            if temp_predicts[i] >= args.pH:
                 found = i
-                temp_pH = temp_predicts[i]
+                # temp_pH = temp_predicts[i]
 
-        pH_predicts.append(temp_predicts[found])
-        pH_labels.append(temp_labels[found])
-        pH_smiles.append(temp_smiles[found])
-        pH_mol_num.append(temp_mol_num[found])
+        if found == -1 and len(predicts) == 0:
+            pH_predicts.append(14.0)
+            pH_labels.append(temp_labels[0])
+            pH_smiles.append(ionized_smiles)
+            pH_mol_num.append(temp_mol_num[0])
+        elif found == -1:
+            pH_predicts.append(predicts[0])
+            pH_labels.append(temp_labels[0])
+            pH_smiles.append(ionized_smiles)
+            pH_mol_num.append(temp_mol_num[0])
+        else:
+            pH_predicts.append(temp_predicts[found])
+            pH_labels.append(temp_labels[found])
+            pH_smiles.append(temp_smiles[found])
+            pH_mol_num.append(temp_mol_num[found])
 
     return pH_predicts, pH_labels, pH_smiles, pH_mol_num
 

@@ -25,6 +25,9 @@ def generate_datasets(filename, train_or_test, args):
 
     invalid = 0
     for i, mol in tqdm(data.iterrows(), total=data.shape[0]):
+        if mol['Center'] == 'C' and args.carbons_included is False:
+            continue
+
         keep = False
         smiles_A = mol['Smiles']
 
@@ -71,7 +74,8 @@ def generate_datasets(filename, train_or_test, args):
         smiles_A = smiles_A.replace('[H]', '')
         smiles_A = smiles_A.replace('[C-]', 'C')
 
-        smiles_A = addHs(smiles_A, mol_obj_A, mol_obj_A.GetNumAtoms())
+        negative_nitrogens = []
+        smiles_A = addHs(smiles_A, mol_obj_A, mol_obj_A.GetNumAtoms(), negative_nitrogens)
         if args.verbose > 0 and args.mode != 'test_with_IC':
             print('|  revised: %-112s |' % smiles_A)
 
@@ -233,7 +237,7 @@ def generate_datasets(filename, train_or_test, args):
     return datasets
 
 
-def generate_infersets(small_mol, i, initial, ionization_states, args):
+def generate_infersets(small_mol, i, initial, ionized_smiles, ionization_states, args):
 
     datasets = []
     atom_idx = 0
@@ -250,7 +254,10 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
     ionization_states0 = []
     invalid = 0
     if 'Index' in small_mol.keys():
-        proposed_center = int(small_mol['Index']) + 1
+        if isinstance(small_mol['Index'], list):
+            proposed_center = int(small_mol['Index'][-1]) + 1
+        else:
+            proposed_center = int(small_mol['Index']) + 1
 
     original_smiles = True
     smiles_idx = 0
@@ -335,7 +342,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
 
         # Adding Hs in the smiles
         num_of_atoms = mol_original.GetNumAtoms()
-        smiles = addHs(smiles, mol_original, num_of_atoms)
+        smiles = addHs(smiles, mol_original, num_of_atoms, negative_nitrogens)
 
         # Ionizing the activated NH's
         smiles = ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens, acidic_carbons,
@@ -369,6 +376,9 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
 
     j = -1
     atom_idx = 0
+    if initial is True:
+        ionized_smiles = copy.deepcopy(smiles)
+
     smiles_A = smiles
     while j < len(smiles):
 
@@ -577,7 +587,7 @@ def generate_infersets(small_mol, i, initial, ionization_states, args):
 
             datasets.append(data)
 
-    return datasets
+    return datasets, ionized_smiles
 
 
 def dump_datasets(dataset, path):

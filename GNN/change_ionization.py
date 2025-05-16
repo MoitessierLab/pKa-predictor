@@ -23,7 +23,7 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 
 
-def addHs(smiles, mol_original, num_of_atoms):
+def addHs(smiles, mol_original, num_of_atoms, negative_nitrogens):
     j = -1
     atom_idx = 0
 
@@ -41,6 +41,12 @@ def addHs(smiles, mol_original, num_of_atoms):
 
         if element == 'none':
             continue
+
+        hydrogen_to_remove = 0
+        if atom_idx in negative_nitrogens and charge == 'none' and (element == 'NH2' or element == 'NH' or
+                mol_original.GetAtomWithIdx(atom_idx).GetNumExplicitHs() + mol_original.GetAtomWithIdx(atom_idx).GetNumImplicitHs() > 0):
+            charge = '-'
+            hydrogen_to_remove = 1
 
         curr_atom = mol_original.GetAtomWithIdx(atom_idx)
 
@@ -60,7 +66,7 @@ def addHs(smiles, mol_original, num_of_atoms):
                     continue
 
         if element == 'N':
-            if curr_atom.GetNumImplicitHs() == 1:
+            if curr_atom.GetNumImplicitHs() - hydrogen_to_remove == 1:
                 if brackets is True and charge != 'none':
                     smiles = smiles[:k] + 'NH' + charge + smiles[j + 1:]
                 elif brackets is False and charge != 'none':
@@ -74,7 +80,7 @@ def addHs(smiles, mol_original, num_of_atoms):
                     atom_idx += 1
                     continue
 
-            if curr_atom.GetNumImplicitHs() == 2:
+            if curr_atom.GetNumImplicitHs() - hydrogen_to_remove == 2:
                 if brackets is True and charge != 'none':
                     smiles = smiles[:k] + 'NH2' + charge + smiles[j + 1:]
                 elif brackets is False and charge != 'none':
@@ -409,7 +415,6 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
             for bond in mol_original.GetBonds():
                 if bond.GetBeginAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetEndAtomIdx()).GetSymbol() != 'H':
                     numOfBonds += bond.GetBondTypeAsDouble()
-                    # print("change_ion 289", bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondTypeAsDouble())
                 elif bond.GetEndAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetBeginAtomIdx()).GetSymbol() != 'H':
                     numOfBonds += bond.GetBondTypeAsDouble()
             if numOfBonds == 1:
@@ -425,7 +430,6 @@ def ionizeN(smiles, mol_original, num_of_atoms, acidic_nitrogens, acidic_oxygens
             for bond in mol_original.GetBonds():
                 if bond.GetBeginAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetEndAtomIdx()).GetSymbol() != 'H':
                     numOfBonds += bond.GetBondTypeAsDouble()
-                    # print("change_ion 289", bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondTypeAsDouble())
                 elif bond.GetEndAtomIdx() == curr_atom.GetIdx() and mol_original.GetAtomWithIdx(bond.GetBeginAtomIdx()).GetSymbol() != 'H':
                     numOfBonds += bond.GetBondTypeAsDouble()
 
@@ -620,10 +624,28 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
             is_smiles = True
 
         # Protonate a negatively charged nitrogen
-        if (smiles[j] == 'n' or smiles[j] == 'N') and smiles[j + 1] == '-' and is_smiles is False and addH is True and atom_idx in negative_nitrogens:
+        # if at this stage the Hs have not yet been added (N) they should be added.
+        if (smiles[j] == 'n' or smiles[j] == 'N') and smiles[j + 1] == '-' and is_smiles is False and addH is True\
+                and atom_idx in negative_nitrogens:
             if smiles[j + 1] == '-':
                 smiles_A = smiles[:j] + smiles[j] + 'H' + smiles[j + 2:]
             elif smiles[j + 1] == 'H':
+                smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 2:]
+            elif smiles[j + 1] == ')':
+                smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 2:]
+
+            is_smiles = True
+            negative_nitrogens.remove(atom_idx)
+            if atom_idx not in acidic_nitrogens:
+                acidic_nitrogens.append(atom_idx)
+
+        if (smiles[j] == 'n' or smiles[j] == 'N') and smiles[j + 1] == 'H' and smiles[j + 2] == '2' and is_smiles is False and addH is True\
+                and atom_idx in negative_nitrogens:
+            if smiles[j + 1] == '-':
+                smiles_A = smiles[:j] + smiles[j] + 'H' + smiles[j + 2:]
+            elif smiles[j + 1] == 'H':
+                smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 2:]
+            elif smiles[j + 1] == ')':
                 smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 2:]
 
             is_smiles = True
@@ -665,21 +687,25 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
         # Neutralize a nitrogen (NH+, NH2+, NH3+)
         elif (smiles[j] == 'N' or smiles[j] == 'n') and smiles[j + 1] == 'H' and is_smiles is False and \
                 addH is False and removeH is True and atom_idx in positive_nitrogens:
-
+            num_of_Hs = 0
             if 0 < j < len(smiles) - 3:
                 if smiles[j - 1] == '[' and smiles[j + 3] == ']':
                     smiles_A = smiles[:j - 1] + smiles[j] + smiles[j + 4:]  # [NH+] becomes N
                     j -= 1  # we removed the bracket before so, we have to move j to the left
+                    num_of_Hs = 0
                 elif smiles[j - 1] == '[' and smiles[j + 2] == '2':
                     smiles_A = smiles[:j] + smiles[j] + 'H' + smiles[j + 4:]  # [NH2+] becomes [NH]
+                    num_of_Hs = 1
                 elif smiles[j - 1] == '[' and smiles[j + 2] == '3':
                     smiles_A = smiles[:j] + smiles[j] + 'H2' + smiles[j + 4:]  # [NH3+] becomes [NH2]
+                    num_of_Hs = 2
             else:
                 smiles_A = smiles[:j] + smiles[j] + smiles[j + 2:]
             positive_nitrogens.remove(atom_idx)
             if atom_idx not in ionizable_nitrogens:
                 ionizable_nitrogens.append(atom_idx)
-
+            if num_of_Hs == 0 and atom_idx in acidic_nitrogens:
+                acidic_nitrogens.remove(atom_idx)
             j += 1
             atom_idx += 1
             return False, smiles_A, j, atom_idx
@@ -731,6 +757,9 @@ def parse_smiles(smiles, j, atom_idx, initial, ionizable_nitrogens, positive_nit
                     if smiles[j - 1] == '[' and smiles[j + 2] == ']':
                         smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]
                         j += 2
+                    elif smiles[j - 1] != '[':
+                        smiles_A = smiles[:j] + '[' + smiles[j] + '-]' + smiles[j + 1:]
+                        j += 3
                 elif 0 < j < len(smiles) - 3:
                     if smiles[j - 1] == '[' and smiles[j + 2] == ']':
                         smiles_A = smiles[:j] + smiles[j] + '-' + smiles[j + 2:]

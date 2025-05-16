@@ -9,7 +9,7 @@ from tqdm import tqdm
 from utils import load_data, calculate_metrics, average, optimizer_to
 from plot_and_print import plot_figure1, plot_figure2, plot_figure3, print_results, print_inference, print_results_test
 from prepare_set import generate_infersets, dump_datasets, generate_datasets
-from GNN import GNN
+from GNN import GNN, GNN_New
 from train import train, evaluate
 from torch_geometric.loader import DataLoader
 
@@ -19,9 +19,14 @@ def training(train_dataset, best_hypers, train_loader, test_loader, args):
 
     model_params = {k: v for k, v in best_hypers.items() if k.startswith("model_")}
 
-    best_trained_model = GNN(feature_size=train_dataset[0].x.shape[1],
-                             edge_dim=train_dataset[0].edge_attr.shape[1],
-                             model_params=model_params)
+    if args.GATv2Conv_Or_Other == "GATv2Conv":
+        best_trained_model = GNN(feature_size=train_dataset[0].x.shape[1],
+                                 edge_dim=train_dataset[0].edge_attr.shape[1],
+                                 model_params=model_params)
+    else:
+        best_trained_model = GNN_New(feature_size=train_dataset[0].x.shape[1],
+                                     edge_dim=train_dataset[0].edge_attr.shape[1],
+                                     model_params=model_params)
 
     loss_fn = torch.nn.MSELoss()
 
@@ -269,7 +274,6 @@ def inferring(args):
     library_infer_predicts = []
     library_infer_labels = []
     library_infer_smiles = []
-    library_infer_smiles_base = []
     library_infer_mol_num = []
     library_infer_centers = []
     library_infer_proposed_centers = []
@@ -279,15 +283,21 @@ def inferring(args):
         if args.verbose > 1:
             print("|        | Initial inference                                                                        "
                   "                         |")
-        initial_proposed_center = int(small_mol['Index']) + 1
-
+        if 'Index' in small_mol.keys(): #To resolve not having Index column in the dataset
+            initial_proposed_center = int(small_mol['Index']) + 1
+        else:
+            initial_proposed_center = 0
+        ionized_smiles = ''
+        initial = True
         infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
-            infer_proposed_centers, infer_neutral, infer_ionization_states = \
-            infer(i, small_mol, True, [], infer_path, model_params, device, best_hypers, loss_fn, args)
+            infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles = \
+            infer(i, small_mol, initial, ionized_smiles, [], infer_path, model_params, device, best_hypers, loss_fn, args)
+
+        ionized_mol_num = i + 1
 
         if args.verbose > 1:
-            print_inference(infer_predicts, infer_labels, infer_smiles, infer_mol_num, infer_centers,
-                            initial_proposed_center, args)
+            print_inference(infer_predicts, infer_labels, infer_smiles, ionized_smiles, infer_mol_num, ionized_mol_num, infer_centers,
+                            initial_proposed_center, initial, args)
 
         all_infer_predicts = []
         all_infer_labels = []
@@ -383,20 +393,19 @@ def inferring(args):
                     if args.verbose > 1:
                         print("|        | round #%2s: %-102s |" % (protonation_step, small_mol['Smiles']))
 
+                    initial = False
                     infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
-                        infer_proposed_centers, infer_neutral, infer_ionization_states = infer(i, small_mol, False,
-                                                                                               ionization_state,
-                                                                                               infer_path, model_params,
-                                                                                               device, best_hypers,
-                                                                                               loss_fn, args)
+                        infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles = \
+                            infer(i, small_mol, initial, ionized_smiles, ionization_state, infer_path, model_params,
+                                  device, best_hypers, loss_fn, args)
 
                 if len(infer_predicts) == 0:
                     if args.verbose > 1:
                         print('|        | no acid/base pair found                                                                                           |')
                     break
                 elif args.verbose > 1:
-                    print_inference(infer_predicts, infer_labels, infer_smiles, infer_mol_num, infer_centers,
-                                    initial_proposed_center, args)
+                    print_inference(infer_predicts, infer_labels, infer_smiles, ionized_smiles, infer_mol_num, ionized_mol_num, infer_centers,
+                                    initial_proposed_center, initial, args)
 
             if len(infer_predicts) > 0:
                 for item in range(len(infer_predicts)):
@@ -409,12 +418,14 @@ def inferring(args):
                         all_infer_centers.append(infer_centers[item])
                         all_infer_proposed_centers.append(infer_proposed_centers[item])
                         all_infer_ionization_states.append(infer_ionization_states[0][item])
+                        all_infer_ionization_states.append(infer_ionization_states[0][item])
 
         if args.verbose > 1 and len(all_infer_smiles) > 0:
-            print("|        | Final: %-91s----------------|" % (all_infer_smiles[0]))
+            print("|        | Final: %-91s----------------|" % (ionized_smiles))
+            #Change all_infer_smiles[0] to ionized_smiles, because it reported the first protonated stated after final and not the fully deprotonated one
 
-        print_inference(all_infer_predicts, all_infer_labels, all_infer_smiles, all_infer_mol_num,
-                        all_infer_centers, initial_proposed_center, args)
+        print_inference(all_infer_predicts, all_infer_labels, all_infer_smiles, ionized_smiles, all_infer_mol_num, ionized_mol_num,
+                        all_infer_centers, initial_proposed_center, initial, args)
 
         for item in range(len(all_infer_predicts)):
             library_infer_predicts.append(all_infer_predicts[item])
@@ -431,9 +442,9 @@ def inferring(args):
                            library_infer_centers, library_infer_proposed_centers, library_infer_mol_num, args)
 
 
-def infer(i, small_mol, initial, ionization_states, infer_path, model_params, device, best_hypers, loss_fn, args):
+def infer(i, small_mol, initial, ionized_smiles, ionization_states, infer_path, model_params, device, best_hypers, loss_fn, args):
 
-    infer_dataset = generate_infersets(small_mol, i, initial, ionization_states, args)
+    infer_dataset, ionized_smiles = generate_infersets(small_mol, i, initial, ionized_smiles, ionization_states, args)
     dump_datasets(infer_dataset, infer_path)
 
     # If no acid/base pair found, we exit
@@ -448,16 +459,21 @@ def infer(i, small_mol, initial, ionization_states, infer_path, model_params, de
         infer_neutrals = []
         infer_ionization_states = []
         return infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, \
-            infer_centers, infer_proposed_centers, infer_neutrals, infer_ionization_states
+            infer_centers, infer_proposed_centers, infer_neutrals, infer_ionization_states, ionized_smiles
 
     # Loading data for training
     infer_data = load_data(args.infer_pickled)
 
-    model_infer = GNN(feature_size=infer_dataset[0].x.shape[1],
-                      edge_dim=infer_dataset[0].edge_attr.shape[1],
-                      model_params=model_params)
+    if args.GATv2Conv_Or_Other == "GATv2Conv":
+        model_infer = GNN(feature_size=infer_dataset[0].x.shape[1],
+                          edge_dim=infer_dataset[0].edge_attr.shape[1],
+                          model_params=model_params)
+    else:
+        model_infer = GNN_New(feature_size=infer_dataset[0].x.shape[1],
+                          edge_dim=infer_dataset[0].edge_attr.shape[1],
+                          model_params=model_params)
 
-    checkpoint = torch.load(args.model_dir + args.model_name, map_location=torch.device('cpu'))
+    checkpoint = torch.load(args.model_dir + args.model_name, map_location=torch.device('cpu'), weights_only= True)
     model_infer.load_state_dict(checkpoint['model_state_dict'])
     model_infer.eval()
 
@@ -469,7 +485,7 @@ def infer(i, small_mol, initial, ionization_states, infer_path, model_params, de
         final_test(model=model_infer, loader=infer_loader, loss_fn=loss_fn, args=args)
 
     return infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
-        infer_proposed_centers, infer_neutral, infer_ionization_states
+        infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles
 
 
 def testing_with_IC(args):
@@ -495,9 +511,15 @@ def testing_with_IC(args):
 
     model_params = {k: v for k, v in best_hypers.items() if k.startswith("model_")}
     loss_fn = torch.nn.MSELoss()
-    model_test = GNN(feature_size=test_dataset[0].x.shape[1],
-                             edge_dim=test_dataset[0].edge_attr.shape[1],
-                             model_params=model_params)
+
+    if args.GATv2Conv_Or_Other == "GATv2Conv":
+        model_test = GNN(feature_size=test_dataset[0].x.shape[1],
+                         edge_dim=test_dataset[0].edge_attr.shape[1],
+                         model_params=model_params)
+    else:
+        model_test = GNN_New(feature_size=test_dataset[0].x.shape[1],
+                         edge_dim=test_dataset[0].edge_attr.shape[1],
+                         model_params=model_params)
 
     print('| Reading the files, preparing the features and computing pKa                                                                |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')

@@ -27,6 +27,7 @@ electronegativity = {
 }
 
 # Hardness from: https://link.springer.com/article/10.1007/s00894-013-1778-z
+#https://doi.org/10.3390/i3020087
 hardness = {
     'C': 5.00,
     'N': 7.23,

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from rdkit import Chem
 
-from GNN import GNN
+from GNN import GNN, GNN_New
 from utils import find_protonation_state, compute_mae, search
 
 seed = 42
@@ -170,18 +170,27 @@ def print_results_test(predicts, labels, smiles, centers, proposed_centers, mol_
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
 
-def print_inference(preds, labels, smiles, mol_num, centers, proposed_center, args):
-
+def print_inference(preds, labels, smiles, ionized_smiles, mol_num, ionized_mol_num, centers, proposed_center, initial, args):
     if args.mode == 'pH':
-        preds, labels, smiles, mol_num = find_protonation_state(preds, labels, smiles, mol_num, args)
+        preds, labels, smiles, mol_num = find_protonation_state(preds, labels, smiles, ionized_smiles, mol_num, ionized_mol_num, initial, args)
 
     if args.mode == 'test':
         for i in range(len(preds)):
             print('| %6.0f | %-81s |  %3s  |  %3s  | %5.2f | %5.2f |' % (mol_num[i], smiles[i], proposed_center,
                                                                          centers[i], labels[i], preds[i]))
     else:
-        for i in range(len(preds)):
-            print('| %6.0f | %-88s | %6s | %13.2f |' % (mol_num[i], smiles[i], centers[i], preds[i]))
+        if len(centers) == 0:
+            print('| %6.0f | %-88s | %6s | %13s |' % (ionized_mol_num, ionized_smiles, 'n/a', '> 14'))
+        else:
+            for i in range(len(preds)):
+                if preds[i] == 14:
+                    if centers == []:
+                        print('| %6.0f | %-88s | %6s | %13s |' % (0, smiles[i], 'None', '>14'))
+                    else:
+                        print('| %6.0f | %-88s | %6s | %13s |' % (mol_num[i], smiles[i], centers[i], '>14'))
+                else:
+                    print('| %6.0f | %-88s | %6s | %13.2f |' % (mol_num[i], smiles[i], centers[i], preds[i]))
+
 
     print('|----------------------------------------------------------------------------------------------------------------------------|', flush=True)
 
@@ -192,9 +201,14 @@ def print_model_txt(hypers, args):
         print('|----------------------------------------------------------------------------------------------------------------------------|')
         model_params = {k: v for k, v in hypers.items() if k.startswith("model_")}
 
-        trained_model = GNN(feature_size=hypers['model_node_feature_size'],
-                            edge_dim=hypers['model_edge_feature_size'],
-                            model_params=model_params)
+        if args.GATv2Conv_Or_Other == "GATv2Conv":
+            trained_model = GNN(feature_size=hypers['model_node_feature_size'],
+                                edge_dim=hypers['model_edge_feature_size'],
+                                model_params=model_params)
+        else:
+            trained_model = GNN_New(feature_size=hypers['model_node_feature_size'],
+                                edge_dim=hypers['model_edge_feature_size'],
+                                model_params=model_params)
 
         checkpoint = torch.load(args.model_dir + args.load_model, map_location=torch.device('cpu'))
         trained_model.load_state_dict(checkpoint['model_state_dict'])

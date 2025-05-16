@@ -2,6 +2,7 @@
 # Jerome Genzling, Ziling Luo, Ben Weiser, Nicolas Moitessier
 # Department of Chemistry, McGill University
 # Montreal, QC, Canada
+#
 # Some preliminary installation:
 # sudo apt install python3-pip
 # pip install torch
@@ -11,7 +12,8 @@
 # pip install rdkit
 # pip install seaborn
 # pip install hyperopt
-# To vizualize smiles, you may use: https://www.cheminfo.org/flavor/malaria/Utilities/SMILES_generator___checker/index.html
+# pip install scikit-learn
+# To visualise smiles, you may use: https://www.cheminfo.org/flavor/malaria/Utilities/SMILES_generator___checker/index.html
 
 import torch
 import numpy as np

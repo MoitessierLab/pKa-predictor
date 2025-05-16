@@ -17,11 +17,9 @@ def usage():
     print('|    --mask_size 4                                                                                                           |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
     print('| For predicting pKa using a model on a set:                                                                                 |')
-    print('|    python3 main.py --mode infer --input data.csv --model_dir saved_models/ --model_name train_output.pth                   |')
-    print('|    --n_graph_layers 3 --mask_size 4 >                                                                                      |')
+    print('|    python3 main.py --mode infer --input data.csv > output_infer_data.out                                                   |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
     print('| For predicting the most likely protonation state at a given pH:                                                            |')
-    print('|    python3 main.py --mode pH --pH 7.4 --input data.csv --model_dir saved_models/ --model_name train_output.pth             |')
-    print('|    --n_graph_layers 3 --mask_size 4 >                                                                                      |')
+    print('|    python3 main.py --mode pH --pH 7.4 --input data.csv  > output_pH_data.out                                               |')
     print('|----------------------------------------------------------------------------------------------------------------------------|')
 
