@@ -1,31 +1,100 @@
-# pKa-predictor
-Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa Prediction.
-Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
+#pKa-predictor
+
+Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa PredictionJérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
 nicolas.moitessier@mcgill.ca
-2023-12-07 - revised 2024-06-18
+2023-12-07 – revised 2025-05-16
 
-![Graphical-abstract300.png](Graphical-abstract300.png)
 
-# Required libraries:
-torch, torch_geometric, pandas, numpy, rdkit, seaborn, hyperopt
+#🔍 What is this?
 
-# Repository Structure
+A Graph Neural Network (GNN) model for:
 
-- The complete assembled and clean data set can be found in the Datasets folder.
-- The clustered and randomly split sets (obtained with the split_train_test_by_TC.py) can be found in the Datasets folder.
-- The code to generate the various fingerprints used for the Baseline Models can be found in Baseline_Models/Descriptors.
-- These latter will then be used in the respective folders for the traditional models (Baseline_Models/RF or Baseline_Models/XGB).
-- All the code related to our GNN/GAT model can be found in the GNN folder.
-- All the code used to retrain MolGpKa (code and pickled datasets) can be found in the MolGpKa_retrained.
+- Predicting pKa values of ionizable centers
+- Identifying protonation sites
+- Estimating dominant protonation states at a given pH
+- Supporting iterative protonation/deprotonation of polyprotic molecules
 
-# Getting started with our GNN model
-Command to see the usage of this python script:
+#🧪 Core Functionalities
+
+- Input: CSV with SMILES and (optionally) ionizable atom indices
+- Output: pKa value(s), and major protonated species at given pH
+- Iterative inference for molecules with multiple ionizable centers
+- Easily extendable to new datasets or re-trainable on custom data
+
+#📦 Required Libraries
+
+Install with pip:
+
+pip install torch torch_geometric pandas numpy rdkit seaborn hyperopt
+
+#📁 Repository Structure
+
+Datasets/ : All cleaned, split, and raw datasets
+
+Baseline_Models/Descriptors/ : Code to generate traditional descriptors
+
+Baseline_Models/RF, /XGB : Traditional model training scripts (Random Forest/XGB)
+
+GNN/ : All code related to GNN/GAT models
+
+MolGpKa_retrained/ : Code and data for retraining MolGpKa
+
+#🚀 Getting Started with the GNN
+
+##🔹 1. See available options
+
 python main.py --mode usage
 
-Running any of the mode will first output all the keyword and their default values.
+All possible arguments and their default values will be printed.
 
-To run the provided model on the csv file called train_set_0.65.csv:
+##🔹 2. Predict pKa on a sample set
 
-Run the following command on Windows (on Linux or Mac, you may need to adapt the format of the path):
+On Windows:
 
-python main.py --mode test --n_graph_layers 4 --data_path ..\Datasets\ --input train_set_0.65.csv --model_dir ..\Model\  --output testing_model_train_set_0.65 --model_name model_4-4.pth --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl --carbons_included False > testing_model_train_set_0.65.out 
+python main.py ^
+    --mode infer ^
+    --data_path ..\Datasets\ ^
+    --input train_set_0.65.csv ^
+    --model_dir ..\Model\ ^
+    --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl ^
+    --carbons_included False ^
+    > testing_model_train_set_0.65.out
+
+On Linux/macOS: replace \ with / and remove the ^ line continuation.
+
+##🔹 3. Predict from a CSV in Python
+
+You can also use the predict() function directly:
+
+from predict import predict
+
+predicted_pkas, protonated_smiles = predict("your_dataset.csv", pH=7.4)
+
+##🔹 4. Verbose Levels
+
+Use the --verbose flag to control output detail:
+
+--verbose 0: No details printed in the output (silent mode)
+
+--verbose 1: Summary of predictions + Some cleaning details
+
+--verbose 2: Detailed view of every deprotonation step
+
+#📖 Citation
+
+If you use this code or model, please cite:
+
+Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier.Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa Prediction.McGill University, 2024.
+
+#🧠 Tips
+
+Use Cheminfo SMILES viewer to visualize and debug SMILES.
+
+If protonation states are off, check atom indexing or consider using neutral forms.
+
+You can retrain on your own dataset by modifying train_pKa_predictor.py.
+
+#🛠 Support
+
+Feel free to reach out via email or GitHub issues if you need help using or adapting the model.
+
