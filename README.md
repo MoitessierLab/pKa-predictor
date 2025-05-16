@@ -4,6 +4,7 @@ Leveraging our Teaching Experience to Improve Machine Learning: Application to p
 nicolas.moitessier@mcgill.ca
 2023-12-07 – revised 2025-05-16
 
+![Graphical Abstract](Graphical-abstract300.png)
 
 # 🔍 What is this?
 
