@@ -1,11 +1,11 @@
-#pKa-predictor
+# pKa-predictor
 
 Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa PredictionJérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier
 nicolas.moitessier@mcgill.ca
 2023-12-07 – revised 2025-05-16
 
 
-#🔍 What is this?
+# 🔍 What is this?
 
 A Graph Neural Network (GNN) model for:
 
@@ -14,20 +14,20 @@ A Graph Neural Network (GNN) model for:
 - Estimating dominant protonation states at a given pH
 - Supporting iterative protonation/deprotonation of polyprotic molecules
 
-#🧪 Core Functionalities
+# 🧪 Core Functionalities
 
 - Input: CSV with SMILES and (optionally) ionizable atom indices
 - Output: pKa value(s), and major protonated species at given pH
 - Iterative inference for molecules with multiple ionizable centers
 - Easily extendable to new datasets or re-trainable on custom data
 
-#📦 Required Libraries
+# 📦 Required Libraries
 
 Install with pip:
 
 pip install torch torch_geometric pandas numpy rdkit seaborn hyperopt
 
-#📁 Repository Structure
+# 📁 Repository Structure
 
 Datasets/ : All cleaned, split, and raw datasets
 
@@ -39,7 +39,7 @@ GNN/ : All code related to GNN/GAT models
 
 MolGpKa_retrained/ : Code and data for retraining MolGpKa
 
-#🚀 Getting Started with the GNN
+# 🚀 Getting Started with the GNN
 
 ##🔹 1. See available options
 
@@ -80,21 +80,22 @@ Use the --verbose flag to control output detail:
 
 --verbose 2: Detailed view of every deprotonation step
 
-#📖 Citation
+# 📖 Citation
 
 If you use this code or model, please cite:
 
-Jérôme Genzling, Ziling Luo, Benjamin Weiser, Nicolas Moitessier.Leveraging our Teaching Experience to Improve Machine Learning: Application to pKa Prediction.McGill University, 2024.
+Genzling J, Luo Z, Weiser B, Moitessier N. Leveraging our Teacher’s Experience to Improve Machine Learning: Application to pKa Prediction. ChemRxiv. 2024; doi:10.26434/chemrxiv-2024-bpd53-v2 
+This content is a preprint and has not been peer-reviewed.
 
-#🧠 Tips
+# 🧠 Tips
 
-Use Cheminfo SMILES viewer to visualize and debug SMILES.
+Use Cheminfo SMILES viewer to visualize and debug SMILES (https://www.cheminfo.org/Chemistry/Cheminformatics/Smiles/index.html)
 
 If protonation states are off, check atom indexing or consider using neutral forms.
 
 You can retrain on your own dataset by modifying train_pKa_predictor.py.
 
-#🛠 Support
+# 🛠 Support
 
 Feel free to reach out via email or GitHub issues if you need help using or adapting the model.
 
