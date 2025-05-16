@@ -41,13 +41,13 @@ MolGpKa_retrained/ : Code and data for retraining MolGpKa
 
 # 🚀 Getting Started with the GNN
 
-##🔹 1. See available options
+## 1. See available options
 
 python main.py --mode usage
 
 All possible arguments and their default values will be printed.
 
-##🔹 2. Predict pKa on a sample set
+## 2. Predict pKa on a sample set
 
 On Windows:
 
@@ -62,7 +62,7 @@ python main.py ^
 
 On Linux/macOS: replace \ with / and remove the ^ line continuation.
 
-##🔹 3. Predict from a CSV in Python
+## 3. Predict from a CSV in Python
 
 You can also use the predict() function directly:
 
@@ -70,7 +70,7 @@ from predict import predict
 
 predicted_pkas, protonated_smiles = predict("your_dataset.csv", pH=7.4)
 
-##🔹 4. Verbose Levels
+## 4. Verbose Levels
 
 Use the --verbose flag to control output detail:
 
