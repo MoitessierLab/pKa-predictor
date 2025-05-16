@@ -49,19 +49,24 @@ python main.py --mode usage
 All possible arguments and their default values will be printed.
 
 ## 2. Predict pKa on a sample set
+Your CSV will need to have at least two columns: 'Name' and 'Smiles'
 
 On Windows:
 
 python main.py ^
     --mode infer ^
-    --data_path ..\Datasets\ ^
-    --input train_set_0.65.csv ^
-    --model_dir ..\Model\ ^
-    --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl ^
-    --carbons_included False ^
-    > testing_model_train_set_0.65.out
+    --input your_input.csv ^
+    > infer_your_input.out
 
-On Linux/macOS: replace \ with / and remove the ^ line continuation.
+On Linux: 
+
+python main.py ^
+    --mode infer ^
+    --data_path ..\Datasets\ ^
+    --input your_input.csv ^
+    --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl ^
+    --model_dir ..\Model\ ^
+    > infer_your_input.out
 
 ## 3. Predict from a CSV in Python
 
