@@ -55,20 +55,11 @@ Your CSV will need to have at least two columns: 'Name' and 'Smiles'
 
 On Windows:
 
-python main.py ^
-    --mode infer ^
-    --input your_input.csv ^
-    > infer_your_input.out
+python main.py --mode infer --input your_input.csv > infer_your_input.out
 
 On Linux: 
 
-python main.py ^
-    --mode infer ^
-    --data_path ..\Datasets\ ^
-    --input your_input.csv ^
-    --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl ^
-    --model_dir ..\Model\ ^
-    > infer_your_input.out
+python main.py --mode infer --data_path ..\Datasets\ --input your_input.csv --infer_pickled ..\Datasets\pickled_data\infer_pickled.pkl --model_dir ..\Model\ > infer_your_input.out
 
 ## 3. Predict from a CSV in Python
 
