@@ -84,9 +84,11 @@ def predict(csv_file, device=None, data_path=r'/Datasets/', mode='pH', pH = 7.4,
     elif isinstance(csv_file, pd.DataFrame):
         data = csv_file
 
-    infer_path = os.path.join(os.path.dirname(args.csv_path), "pickled_data", args.infer_pickled)
+    infer_dir = os.path.join(BASE_DIR, "../Datasets", "pickled_data")
+    os.makedirs(infer_dir, exist_ok=True)
+    infer_path = os.path.join(infer_dir, args.infer_pickled)
 
-    device = torch.device("cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     best_hypers = {
         'batch_size': args.batch_size,
@@ -103,26 +105,26 @@ def predict(csv_file, device=None, data_path=r'/Datasets/', mode='pH', pH = 7.4,
 
     model_params = {k: v for k, v in best_hypers.items() if k.startswith("model_")}
     loss_fn = torch.nn.MSELoss()
-    # library_infer_predicts = []
-    # library_infer_labels = []
-    # library_infer_smiles = []
-    # library_infer_smiles_base = []
-    # library_infer_mol_num = []
-    # library_infer_centers = []
-    # library_infer_proposed_centers = []
-    # library_infer_ionization_states = []
     
-    for i, small_mol in tqdm(data.iterrows(), total=len(data)):
-        # initial_proposed_center = int(small_mol['Index']) + 1
-        if Descriptors.ExactMolWt(Chem.MolFromSmiles(small_mol['Smiles']))>= 1000:
-            raise ValueError(f"You're trying to predict the pKa of a species that seems too big for a small molecule (>1000 g/mol): {small_mol['Smiles']}")
-        ionized_smiles = ''
-        initial = True
-        
-        infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
-            infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles = \
-            infer(i, small_mol, initial, ionized_smiles, [], infer_path, model_params, device, best_hypers, loss_fn,
-                  args)
+    disable_tqdm = (getattr(args, 'verbose', 0) == 0)
+    for i, small_mol in tqdm(data.iterrows(), total=len(data), disable=disable_tqdm):
+        try:
+            mol_obj = Chem.MolFromSmiles(small_mol['Smiles'])
+            if mol_obj is None or Descriptors.ExactMolWt(mol_obj) >= 1000:
+                results_smiles_pred.append(small_mol['Smiles'])
+                results_pka_pred.append('NaN')
+                continue
+            ionized_smiles = ''
+            initial = True
+            
+            infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
+                infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles = \
+                infer(i, small_mol, initial, ionized_smiles, [], infer_path, model_params, device, best_hypers, loss_fn,
+                      args)
+        except Exception:
+            results_smiles_pred.append(small_mol['Smiles'])
+            results_pka_pred.append('NaN')
+            continue
 
         ionized_mol_num = i + 1
         all_infer_predicts = []
@@ -274,6 +276,19 @@ def predict(csv_file, device=None, data_path=r'/Datasets/', mode='pH', pH = 7.4,
     return results_pka_pred, results_smiles_pred
 
 
+_MODEL_CACHE = {}
+
+def get_cached_model(feature_size, edge_dim, model_params, ckpt_path, device):
+    cache_key = (ckpt_path, str(device), feature_size, edge_dim)
+    if cache_key not in _MODEL_CACHE:
+        model = GNN(feature_size=feature_size, edge_dim=edge_dim, model_params=model_params)
+        model = load_model_weights(model, ckpt_path, map_location=device)
+        model.to(device)
+        model.eval()
+        _MODEL_CACHE[cache_key] = model
+    return _MODEL_CACHE[cache_key]
+
+
 def infer(i, small_mol, initial, ionized_smiles, ionization_states, infer_path, model_params, device, best_hypers, loss_fn, args):
 
     infer_dataset, ionized_smiles = generate_infersets(small_mol, i, initial, ionized_smiles, ionization_states, args)
@@ -296,30 +311,21 @@ def infer(i, small_mol, initial, ionized_smiles, ionization_states, infer_path, 
     # Loading data for training
     infer_data = load_data(infer_path)
 
-    if args.GATv2Conv_Or_Other == "GATv2Conv":
-        model_infer = GNN(feature_size=infer_dataset[0].x.shape[1],
-                          edge_dim=infer_dataset[0].edge_attr.shape[1],
-                          model_params=model_params)
-    #else:
-    #    model_infer = GNN_New(feature_size=infer_dataset[0].x.shape[1],
-    #                      edge_dim=infer_dataset[0].edge_attr.shape[1],
-    #                      model_params=model_params)
-
     ckpt_path = os.path.join(args.model_dir, args.model_name)
-    model_infer = load_model_weights(model_infer, ckpt_path)
-    model_infer.eval()
-
-    # model_path = os.path.join(args.model_dir, args.model_name)
-    # checkpoint = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
-    # model_infer.load_state_dict(checkpoint['model_state_dict'])
-    # model_infer.eval()
+    model_infer = get_cached_model(
+        infer_dataset[0].x.shape[1],
+        infer_dataset[0].edge_attr.shape[1],
+        model_params,
+        ckpt_path,
+        device
+    )
 
     infer_loader = DataLoader(infer_data, best_hypers["batch_size"],
                               num_workers=0, shuffle=False)
 
     infer_loss, infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_centers, infer_proposed_centers,\
         infer_mol_num, infer_neutral, infer_error, infer_ionization_states = \
-        final_test(model=model_infer, loader=infer_loader, loss_fn=loss_fn, args=args)
+        final_test(model=model_infer, loader=infer_loader, loss_fn=loss_fn, args=args, device=device)
 
     return infer_predicts, infer_labels, infer_smiles, infer_smiles_base, infer_mol_num, infer_centers, \
         infer_proposed_centers, infer_neutral, infer_ionization_states, ionized_smiles
@@ -338,8 +344,9 @@ def load_model_weights(model, path, map_location=torch.device("cpu")):
     model.load_state_dict(state_dict)
     return model
 
-def final_test(loader, model, loss_fn, args):
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.mode == 'train' else "cpu")
+def final_test(loader, model, loss_fn, args, device=None):
+    if device is None:
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Enumerate over the data
     all_preds = []

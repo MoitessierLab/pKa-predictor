@@ -924,7 +924,7 @@ def find_centers(mol, i, smiles, name, initial, args):
     acidic_carbons = []
     nitro_nitrogens = []
 
-    if initial is True:
+    if initial is True and getattr(args, 'verbose', 0) > 0:
         print('| %6s | original SMILES: %-80s ----------------|' % (str(i + 1), smiles + ' ' + str(name)))
 
     # We assume only implicit hydrogens

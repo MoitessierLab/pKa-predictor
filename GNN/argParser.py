@@ -81,20 +81,21 @@ def argsParser():
     parser.add_argument("--node_feature_size", help="number of features for nodes", type=int, default=0)
     parser.add_argument("--edge_feature_size", help="number of features for edges", type=int, default=0)
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     if args.mode == "test" and args.batch_size < 1024:
         args.batch_size = 1024
 
-    print('|----------------------------------------------------------------------------------------------------------------------------|')
-    print('| pKaLearn                                                                                                              |')
-    print('| Jerome Genzling, Ziling Luo, Benjamin Weiser, Nic Moitessier                                                               |')
-    print('| Department of Chemistry, McGill University, Montreal, QC, Canada                                                           |')
-    print('|----------------------------------------------------------------------------------------------------------------------------|')
-    print('| Parameters used:                                                                                                           |')
-    print('| --mode (train, hyperopt, test, infer or pH):                       %-55s |' % args.mode)
-    print('| --verbose (level of output):                                       %-55s |' % args.verbose)
-    print('| --print_models (print model while training):                       %-55s |' % args.print_models)
+    if getattr(args, 'verbose', 0) > 0:
+        print('|----------------------------------------------------------------------------------------------------------------------------|')
+        print('| pKaLearn                                                                                                              |')
+        print('| Jerome Genzling, Ziling Luo, Benjamin Weiser, Nic Moitessier                                                               |')
+        print('| Department of Chemistry, McGill University, Montreal, QC, Canada                                                           |')
+        print('|----------------------------------------------------------------------------------------------------------------------------|')
+        print('| Parameters used:                                                                                                           |')
+        print('| --mode (train, hyperopt, test, infer or pH):                       %-55s |' % args.mode)
+        print('| --verbose (level of output):                                       %-55s |' % args.verbose)
+        print('| --print_models (print model while training):                       %-55s |' % args.print_models)
 
     if args.mode == 'train' or args.mode == 'hyperopt':
         print('| --n_random_smiles (number of random smiles)                        %-55.0f |' % args.n_random_smiles)
